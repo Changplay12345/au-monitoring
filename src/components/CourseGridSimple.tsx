@@ -223,14 +223,17 @@ export function CourseGridSimple() {
                 }}
               >
                 {groups.map((group, gIdx) => (
-                  <CourseBlock
-                    key={gIdx}
-                    group={group}
-                    startMin={START_MIN}
-                    spanMin={SPAN_MIN}
-                    isDimmed={activeDay !== 'ALL' && day !== activeDay}
-                    onCourseClick={handleCourseClick}
-                  />
+                  group.items.map((course: any, cIdx: number) => (
+                    <CourseBlock
+                      key={`${gIdx}-${cIdx}`}
+                      course={course}
+                      startMin={START_MIN}
+                      spanMin={SPAN_MIN}
+                      groupStartMin={group.min}
+                      groupSpanMin={group.max - group.min}
+                      onClick={() => handleCourseClick(course)}
+                    />
+                  ))
                 ))}
               </div>
             </div>
