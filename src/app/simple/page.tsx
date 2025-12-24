@@ -1,3 +1,5 @@
+'use client'
+
 export default function SimplePage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial' }}>
