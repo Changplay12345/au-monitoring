@@ -32,13 +32,13 @@ interface Document {
 const documents: Document[] = [
   {
     id: 'tqf-requirements',
-    title: 'TQF Software Requirements Specification ',
-    description: 'Complete software requirements and technical specifications for TQF Master 2.0 system.',
+    title: 'AU USR&MP Software Requirements Specification ',
+    description: 'Complete software requirements and technical specifications ',
     type: 'requirements',
-    size: '248 KB',
+    size: '432 KB',
     lastUpdated: 'December 2024',
-    downloadUrl: '/TQF_Software Requirements Specification.pdf',
-    viewUrl: '/TQF_Software Requirements Specification.pdf',
+    downloadUrl: '/Project_SRS_proto.pdf',
+    viewUrl: '/Project_SRS_proto.pdf',
     icon: <FileText className="w-6 h-6" />,
     features: [
       'Functional requirements',
@@ -48,6 +48,24 @@ const documents: Document[] = [
       'Data models and workflows'
     ]
   },
+  // {
+  //   id: 'tqf-requirements',
+  //   title: 'TQF Software Requirements Specification ',
+  //   description: 'Complete software requirements and technical specifications for TQF Master 2.0 system.',
+  //   type: 'requirements',
+  //   size: '248 KB',
+  //   lastUpdated: 'December 2024',
+  //   downloadUrl: '/TQF_Software Requirements Specification.pdf',
+  //   viewUrl: '/TQF_Software Requirements Specification.pdf',
+  //   icon: <FileText className="w-6 h-6" />,
+  //   features: [
+  //     'Functional requirements',
+  //     'Non-functional requirements', 
+  //     'System architecture',
+  //     'User stories and use cases',
+  //     'Data models and workflows'
+  //   ]
+  //},
   {
     id: 'tqf-user-manual',
     title: 'TQF UserManual',
@@ -66,24 +84,24 @@ const documents: Document[] = [
       'Best practices'
     ]
   },
-  {
-    id: 'usr-requirements',
-    title: 'USR Software Requirements Specification',
-    description: 'Detailed software requirements and system architecture for USR platform.',
-    type: 'requirements',
-    size: '289 KB',
-    lastUpdated: 'December 2024',
-    downloadUrl: '/USR_Software Requirements Specification.pdf',
-    viewUrl: '/USR_Software Requirements Specification.pdf',
-    icon: <FileText className="w-6 h-6" />,
-    features: [
-      'Functional requirements',
-      'Non-functional requirements', 
-      'System architecture',
-      'User stories and use cases',
-      'Data models and workflows'
-    ]
-  },
+  // {
+  //   id: 'usr-requirements',
+  //   title: 'USR Software Requirements Specification',
+  //   description: 'Detailed software requirements and system architecture for USR platform.',
+  //   type: 'requirements',
+  //   size: '289 KB',
+  //   lastUpdated: 'December 2024',
+  //   downloadUrl: '/USR_Software Requirements Specification.pdf',
+  //   viewUrl: '/USR_Software Requirements Specification.pdf',
+  //   icon: <FileText className="w-6 h-6" />,
+  //   features: [
+  //     'Functional requirements',
+  //     'Non-functional requirements', 
+  //     'System architecture',
+  //     'User stories and use cases',
+  //     'Data models and workflows'
+  //   ]
+  // },
   {
     id: 'usr-user-manual',
     title: 'USR UserManual',

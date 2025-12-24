@@ -18,6 +18,13 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [targetPage, setTargetPage] = useState('')
+  const [isEntering, setIsEntering] = useState(true)
+
+  // Entrance animation on mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsEntering(false), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Toggle sidebar with ESC key
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -60,7 +67,9 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen bg-gray-50 transition-all duration-700 ease-out ${
+      isEntering ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
+    }`}>
       {/* Logout transition overlay */}
       <div 
         className={`fixed inset-0 z-[100] flex items-center justify-center bg-white transition-all duration-500 ${

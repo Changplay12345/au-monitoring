@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { GCPLayout } from '@/components/GCPLayout'
 import { 
   FileText, 
@@ -165,38 +165,6 @@ const typeColors = {
 
 export default function DocumentationPage() {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isClosing, setIsClosing] = useState(false)
-  const [isOpening, setIsOpening] = useState(false)
-
-  const openModal = (doc: Document) => {
-    setSelectedDoc(doc)
-    setIsOpening(true)
-    setIsModalOpen(true)
-    // Trigger opening animation after a small delay
-    setTimeout(() => setIsOpening(false), 50)
-  }
-
-  const closeModal = () => {
-    setIsClosing(true)
-    setTimeout(() => {
-      setSelectedDoc(null)
-      setIsModalOpen(false)
-      setIsClosing(false)
-    }, 300)
-  }
-
-  // ESC key handler - close modal first
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedDoc) {
-        e.stopPropagation()
-        closeModal()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedDoc])
 
   const handleDownload = (doc: Document) => {
     const link = document.createElement('a')
@@ -269,7 +237,7 @@ export default function DocumentationPage() {
                 <div
                   key={doc.id}
                   className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group"
-                  onClick={() => openModal(doc)}
+                  onClick={() => setSelectedDoc(doc)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="p-3 bg-gray-50 rounded-lg group-hover:bg-blue-50 transition-colors">
@@ -332,19 +300,11 @@ export default function DocumentationPage() {
         {/* Selected Document Detail Modal */}
         {selectedDoc && (
           <div 
-            className={`fixed inset-0 flex items-center justify-center p-6 z-50 transition-all duration-300 ${
-              isClosing || isOpening ? 'bg-black/0' : 'bg-black/50'
-            }`}
-            onClick={closeModal}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50"
+            onClick={() => setSelectedDoc(null)}
           >
             <div 
-              className={`bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto transform transition-all duration-300 ${
-                isClosing 
-                  ? 'scale-95 opacity-0 translate-y-4' 
-                  : isOpening
-                    ? 'scale-95 opacity-0 -translate-y-4'
-                    : 'scale-100 opacity-100 translate-y-0'
-              }`}
+              className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
@@ -363,7 +323,7 @@ export default function DocumentationPage() {
                     </div>
                   </div>
                   <button
-                    onClick={closeModal}
+                    onClick={() => setSelectedDoc(null)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     ×

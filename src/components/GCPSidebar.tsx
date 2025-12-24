@@ -178,12 +178,6 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-[#e0e0e0] p-4">
-          <button className="w-full py-2 px-4 text-sm text-blue-600 font-medium border border-blue-600 rounded-full hover:bg-blue-50 transition-colors">
-            View all products
-          </button>
-        </div>
       </aside>
     </>
   )

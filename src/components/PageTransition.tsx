@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { cn } from './utils'
 import { Loader2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 
 interface PageTransitionProps {
   isNavigating: boolean
@@ -10,33 +10,23 @@ interface PageTransitionProps {
 }
 
 export function PageTransition({ isNavigating, targetPage }: PageTransitionProps) {
-  const [show, setShow] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    if (isNavigating) {
-      setShow(true)
-    }
-  }, [isNavigating])
+    setMounted(true)
+  }, [])
 
-  if (!show) return null
+  if (!isNavigating || !mounted) return null
 
-  return (
+  // Use portal to render at document body level to ensure it's always on top
+  return createPortal(
     <div 
-      className={cn(
-        "fixed inset-0 z-[200] flex items-center justify-center bg-white",
-        "transition-opacity duration-300",
-        isNavigating ? "opacity-100" : "opacity-0"
-      )}
+      className="fixed inset-0 flex items-center justify-center bg-white"
+      style={{ zIndex: 99999 }}
     >
       <div className="flex flex-col items-center gap-4">
-        {/* Logo */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-3xl font-bold text-red-600 tracking-tight">AU</span>
-          <span className="text-3xl font-light text-gray-700">USR&MP</span>
-        </div>
-        
         {/* Loading spinner */}
-        <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+        <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
         
         {/* Target page text */}
         {targetPage && (
@@ -45,6 +35,7 @@ export function PageTransition({ isNavigating, targetPage }: PageTransitionProps
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
