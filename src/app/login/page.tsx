@@ -55,10 +55,14 @@ function LoginContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
       
+      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+        : `${window.location.origin}/auth/callback`
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
           skipBrowserRedirect: true
         }
       })
