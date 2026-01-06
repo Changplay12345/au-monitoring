@@ -77,9 +77,9 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
     { icon: <Users className="w-5 h-5" />, label: 'Admin Panel', hasChevron: true, href: pageUrls['Admin Panel'], adminOnly: true },
   ]
 
-  // Filter items based on user role
-  const filteredTopItems = topItems.filter(item => !item.adminOnly || user?.role === 'admin')
-  const filteredProductItems = productItems.filter(item => !item.adminOnly || user?.role === 'admin')
+  // Show all items but mark admin-only ones
+  const filteredTopItems = topItems
+  const filteredProductItems = productItems
 
   const handleItemClick = (item: SidebarItem) => {
     // If item has external URL and it's not the current active item, navigate
@@ -178,6 +178,11 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
                   )}>
                     {item.label}
                   </span>
+                  {item.adminOnly && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded">
+                      Admin
+                    </span>
+                  )}
                   {item.hasStar && (
                     <Star className="w-4 h-4 text-gray-300 hover:text-yellow-400 transition-colors" />
                   )}
