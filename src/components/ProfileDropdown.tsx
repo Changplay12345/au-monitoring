@@ -161,7 +161,7 @@ export function ProfileDropdown({ user, onLogout, isOpen, onClose }: ProfileDrop
           className="w-full flex items-center justify-center gap-2 py-2 px-4 text-red-600 hover:bg-red-100 rounded-lg font-medium transition-colors"
         >
           <LogOut className="w-4 h-4" />
-          Sign out of AU USR&MP
+          Sign out of AU-Monitoring
         </button>
       </div>
     </div>

@@ -153,7 +153,7 @@ function LoginContent() {
               {/* Header */}
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-semibold text-gray-800 tracking-tight">
-                  Welcome to <span className="text-red-700 font-bold">AU USR&MP</span>
+                  Welcome to <span className="text-red-700 font-bold">AU-Monitoring</span>
                 </h2>
                 <p className="text-gray-500 text-sm mt-2">Sign in to continue</p>
               </div>
@@ -172,8 +172,10 @@ function LoginContent() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Username field */}
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Username
+                  <label
+                    className="block text-sm font-medium text-gray-700 mb-1.5"
+                  >
+                    Username or Email
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -182,7 +184,7 @@ function LoginContent() {
                     <input
                       type="text"
                       name="username"
-                      placeholder="Enter your username"
+                      placeholder="Username or Email"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
@@ -264,7 +266,7 @@ function LoginContent() {
                   <div className="w-full border-t border-gray-200" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500">New to AU USR&MP?</span>
+                  <span className="px-4 bg-white text-gray-500">New to AU-Monitoring?</span>
                 </div>
               </div>
 

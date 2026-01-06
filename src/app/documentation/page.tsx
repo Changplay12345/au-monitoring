@@ -32,7 +32,7 @@ interface Document {
 const documents: Document[] = [
   {
     id: 'tqf-requirements',
-    title: 'AU USR&MP Software Requirements Specification ',
+    title: 'AU-Monitoring Software Requirements Specification ',
     description: 'Complete software requirements and technical specifications ',
     type: 'requirements',
     size: '432 KB',

@@ -24,7 +24,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Acceptance of Terms</h2>
               <div className="text-gray-600">
-                <p>By accessing and using the AU USR&MP (Assumption University Student Registration & Monitoring Platform), you agree to comply with and be bound by these Terms of Service.</p>
+                <p>By accessing and using the AU-Monitoring (Assumption University Student Registration & Monitoring Platform), you agree to comply with and be bound by these Terms of Service.</p>
               </div>
             </section>
 
@@ -97,7 +97,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Intellectual Property</h2>
               <div className="text-gray-600">
-                <p>All content, features, and functionality of the AU USR&MP platform are owned by Assumption University and are protected by copyright, trademark, and other intellectual property laws. You may not reproduce, distribute, or create derivative works without explicit permission.</p>
+                <p>All content, features, and functionality of the AU-Monitoring platform are owned by Assumption University and are protected by copyright, trademark, and other intellectual property laws. You may not reproduce, distribute, or create derivative works without explicit permission.</p>
               </div>
             </section>
 
@@ -111,7 +111,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Limitation of Liability</h2>
               <div className="text-gray-600">
-                <p>The AU USR&MP platform is provided "as is" without warranties of any kind. Assumption University shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.</p>
+                <p>The AU-Monitoring platform is provided "as is" without warranties of any kind. Assumption University shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.</p>
               </div>
             </section>
 

@@ -238,7 +238,7 @@ export default function RegisterPage() {
                 <h2 className="text-2xl font-semibold text-gray-800 tracking-tight">
                   Create Account
                 </h2>
-                <p className="text-gray-500 text-sm mt-1">Join <span className="text-red-700 font-bold">AU USR&MP</span> today</p>
+                <p className="text-gray-500 text-sm mt-1">Join <span className="text-red-700 font-bold">AU-Monitoring</span> today</p>
               </div>
 
               {/* Error message */}

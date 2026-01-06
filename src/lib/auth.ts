@@ -26,6 +26,30 @@ export async function findUserByUsername(username: string): Promise<Record<strin
   return data
 }
 
+// Find user by email
+export async function findUserByEmail(email: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from(USERS_TABLE)
+    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}`)
+    .eq(USERS_EMAIL_COL, email)
+    .limit(1)
+    .single()
+
+  if (error || !data) return null
+  return data
+}
+
+// Find user by username or email
+export async function findUserByUsernameOrEmail(identifier: string): Promise<Record<string, unknown> | null> {
+  // Check if identifier looks like an email
+  const isEmail = identifier.includes('@')
+  
+  if (isEmail) {
+    return await findUserByEmail(identifier)
+  }
+  return await findUserByUsername(identifier)
+}
+
 // Password check - supports both bcrypt hashed and plain text passwords
 export async function passwordMatches(input: string, stored: string): Promise<boolean> {
   // Check if stored password is bcrypt hashed (starts with $2a$, $2b$, or $2y$)
@@ -36,9 +60,9 @@ export async function passwordMatches(input: string, stored: string): Promise<bo
   return input === stored
 }
 
-// Login user
-export async function loginUser(username: string, password: string): Promise<User> {
-  const row = await findUserByUsername(username)
+// Login user (supports username or email)
+export async function loginUser(identifier: string, password: string): Promise<User> {
+  const row = await findUserByUsernameOrEmail(identifier)
   
   if (!row) {
     throw new Error('User not found')

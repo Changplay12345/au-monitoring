@@ -121,7 +121,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
           </button>
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold text-red-600 tracking-tight">AU</span>
-            <span className="text-xl font-light text-gray-700">USR&MP</span>
+            <span className="text-xl font-light text-gray-700">Monitoring</span>
           </div>
           <div className="w-9" /> {/* Spacer for centering */}
         </div>

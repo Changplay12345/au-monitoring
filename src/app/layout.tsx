@@ -20,7 +20,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AU USR&MP - Course Monitoring",
+  title: "AU-Monitoring - Course Monitoring",
   description: "Assumption University Student Registration & Monitoring Platform",
 };
 

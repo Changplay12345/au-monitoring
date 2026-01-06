@@ -58,12 +58,12 @@ export async function POST(request: Request) {
     await resend.emails.send({
       from: 'AU Monitoring <noreply@au-monitoring.site>',
       to: email,
-      subject: 'Reset Your Password - AU USR&MP',
+      subject: 'Reset Your Password - AU-Monitoring',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #dc2626;">Reset Your Password</h2>
           <p>Hello ${user.username},</p>
-          <p>We received a request to reset your password for your AU USR&MP account.</p>
+          <p>We received a request to reset your password for your AU-Monitoring account.</p>
           <p>Click the button below to reset your password:</p>
           <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 8px; margin: 16px 0;">
             Reset Password
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           <p>This link will expire in 1 hour.</p>
           <p>If you didn't request this, you can safely ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-          <p style="color: #666; font-size: 12px;">AU USR&MP - Assumption University Student Registration & Monitoring Platform</p>
+          <p style="color: #666; font-size: 12px;">AU-Monitoring - Assumption University Student Registration & Monitoring Platform</p>
         </div>
       `
     })
