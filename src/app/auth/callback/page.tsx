@@ -73,9 +73,10 @@ export default function AuthCallbackPage() {
         const avatarUrl = oauthUser.user_metadata?.avatar_url || oauthUser.user_metadata?.picture || null
 
         // Use service role key to bypass RLS for user creation/update
+        // Fallback to regular client if service key not available
         const serviceClient = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
+          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
 
         // Check if user exists in our users table
