@@ -73,28 +73,26 @@ export default function DemoLoginFlowPage() {
       {/* 2. Success animation */}
       <div 
         key={`success-${restartKey}`}
-        className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-700 ${
+        className={`fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-700 ${
           showSuccess ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
-        style={{
-          background: showSuccess ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%)' : 'transparent'
-        }}
       >
         <div className={`text-center transform transition-all duration-700 ${
           showSuccess ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
         }`}>
           {/* Success checkmark with animation */}
           <div className="relative w-28 h-28 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
+            <div className="absolute inset-0 rounded-full border-4 border-red-200 animate-ping opacity-20" />
+            <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-pulse" />
             <div className="w-28 h-28 rounded-full bg-white flex items-center justify-center shadow-2xl">
               <CheckCircle className="w-16 h-16 text-green-500 animate-[scale-in_0.5s_ease-out]" />
             </div>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-3">Welcome back!</h2>
-          <p className="text-white/80 text-lg mb-6">Preparing your dashboard...</p>
+          <h2 className="text-3xl font-bold text-gray-800 mb-3">Welcome back!</h2>
+          <p className="text-gray-500 text-lg mb-6">Preparing your dashboard...</p>
           {/* Progress bar */}
-          <div className="w-48 h-1.5 bg-white/30 rounded-full mx-auto overflow-hidden">
-            <div className="h-full bg-white rounded-full animate-[progress_1.5s_ease-in-out]" />
+          <div className="w-48 h-1.5 bg-gray-200 rounded-full mx-auto overflow-hidden">
+            <div className="h-full bg-red-600 rounded-full animate-[progress_1.5s_ease-in-out]" />
           </div>
         </div>
       </div>
