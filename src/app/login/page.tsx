@@ -80,8 +80,9 @@ function LoginContent() {
       </div>
 
       
+      <DustBackground/>
       {/* Modern background with subtle red accent */}
-      <div className="min-h-screen bg-gray-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-8"> <DustBackground/>
+      <div className="min-h-screen bg-gray-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-8">
         
         {/* Centered container with max-width for zoomed-out effect */}
         <div 

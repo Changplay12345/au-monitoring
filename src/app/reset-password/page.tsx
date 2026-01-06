@@ -18,8 +18,10 @@ function ResetPasswordContent() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isValidToken, setIsValidToken] = useState<boolean | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     if (!token) {
       setIsValidToken(false)
       return
@@ -85,7 +87,9 @@ function ResetPasswordContent() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <DustBackground />
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10">
+        <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10 transform transition-all duration-700 ease-out ${
+          mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+        }`}>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-4" />
           <p className="text-gray-600">Verifying reset link...</p>
         </div>
@@ -98,7 +102,9 @@ function ResetPasswordContent() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <DustBackground />
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10">
+        <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10 transform transition-all duration-700 ease-out ${
+          mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+        }`}>
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-8 h-8 text-red-600" />
           </div>
@@ -122,7 +128,9 @@ function ResetPasswordContent() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <DustBackground />
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10">
+        <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10 transform transition-all duration-700 ease-out ${
+          mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+        }`}>
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
@@ -144,7 +152,9 @@ function ResetPasswordContent() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <DustBackground />
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative z-10">
+      <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative z-10 transform transition-all duration-700 ease-out ${
+        mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+      }`}>
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">

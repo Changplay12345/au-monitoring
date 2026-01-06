@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 import DustBackground from '@/components/BackGroundAnimated'
@@ -11,6 +11,12 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Entrance animation
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,7 +61,9 @@ export default function ForgotPasswordPage() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <DustBackground />
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10">
+        <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center relative z-10 transform transition-all duration-700 ease-out ${
+          mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+        }`}>
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
@@ -89,7 +97,9 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <DustBackground />
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative z-10">
+      <div className={`bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative z-10 transform transition-all duration-700 ease-out ${
+        mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+      }`}>
         {/* Back button */}
         <button
           onClick={() => router.push('/login')}
