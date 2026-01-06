@@ -24,7 +24,6 @@ export function CookieConsent({ onAccept, onReject }: CookieConsentProps) {
   }, [])
 
   const handleAccept = () => {
-    setAction('accept')
     setIsAnimating(true)
     setTimeout(() => {
       localStorage.setItem('cookie-consent', 'accepted')
@@ -32,8 +31,7 @@ export function CookieConsent({ onAccept, onReject }: CookieConsentProps) {
       setIsVisible(false)
       onAccept?.()
       setIsAnimating(false)
-      setAction(null)
-    }, 600)
+    }, 400)
   }
 
   const handleReject = () => {
@@ -99,23 +97,12 @@ export function CookieConsent({ onAccept, onReject }: CookieConsentProps) {
   }
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg transition-all duration-500 ${
-        isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
+    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg transition-all duration-400 ${
+        isVisible && !isAnimating ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
       } ${
-        action === 'accept' ? 'bg-green-50 border-green-200' :
         action === 'reject' ? 'bg-red-50 border-red-200' :
         action === 'close' ? 'bg-gray-50 border-gray-300' : ''
       }`}>
-      {/* Success overlay for accept */}
-      {action === 'accept' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-green-500 bg-opacity-10 backdrop-blur-sm z-10">
-          <div className="flex items-center gap-2 text-green-600 animate-bounce">
-            <CheckCircle className="w-8 h-8" />
-            <span className="font-semibold">Accepted!</span>
-          </div>
-        </div>
-      )}
-
       {/* Reject overlay */}
       {action === 'reject' && (
         <div className="absolute inset-0 flex items-center justify-center bg-red-500 bg-opacity-10 backdrop-blur-sm z-10">
@@ -144,7 +131,6 @@ export function CookieConsent({ onAccept, onReject }: CookieConsentProps) {
               isAnimating ? 'scale-95 opacity-70' : 'scale-100 opacity-100'
             }`}>
               <Cookie className={`w-6 h-6 text-gray-600 mt-0.5 flex-shrink-0 transition-all duration-300 ${
-                action === 'accept' ? 'text-green-600 rotate-12 scale-110' :
                 action === 'reject' ? 'text-red-600 -rotate-12 scale-110' :
                 action === 'close' ? 'text-gray-400 scale-90' :
                 'hover:rotate-6'
@@ -182,23 +168,10 @@ export function CookieConsent({ onAccept, onReject }: CookieConsentProps) {
               </button>
               <button
                 onClick={handleAccept}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 flex items-center gap-2 hover:scale-105 ${
-                  action === 'accept'
-                    ? 'bg-green-600 text-white border-2 border-green-400'
-                    : 'text-white bg-red-600 hover:bg-red-700'
-                }`}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-300 flex items-center gap-2 hover:scale-105"
               >
-                {action === 'accept' ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Accepted!
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-4 h-4" />
-                    Accept All
-                  </>
-                )}
+                <Shield className="w-4 h-4" />
+                Accept All
               </button>
             </div>
           </div>
