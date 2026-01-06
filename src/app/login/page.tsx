@@ -80,13 +80,15 @@ function LoginContent() {
       </div>
 
       
+      {/* Background layer */}
+      <div className="fixed inset-0 bg-gray-100 -z-10" />
       <DustBackground/>
       {/* Modern background with subtle red accent */}
-      <div className="min-h-screen bg-gray-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-8">
+      <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-8">
         
         {/* Centered container with max-width for zoomed-out effect */}
         <div 
-          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out ${
+          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out relative z-10 ${
             mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
           }`}
         >
@@ -279,25 +281,7 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* Custom animation styles */}
-      <style jsx>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-        @keyframes scale-in {
-          from { transform: scale(0); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        @keyframes progress {
-          from { width: 0%; }
-          to { width: 100%; }
-        }
-      `}</style>
-    </>
+          </>
   )
 }
 
