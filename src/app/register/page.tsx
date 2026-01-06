@@ -33,15 +33,62 @@ export default function RegisterPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
       
-      const { error } = await supabaseClient.auth.signInWithOAuth({
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: `${window.location.origin}/auth/callback`,
+          skipBrowserRedirect: true
         }
       })
       
       if (error) {
         setError(error.message)
+        return
+      }
+      
+      if (data.url) {
+        // Open OAuth provider in popup window
+        const popup = window.open(
+          data.url,
+          'oauth-register',
+          'width=500,height=600,scrollbars=yes,resizable=yes'
+        )
+        
+        if (!popup) {
+          setError('Popup blocked. Please allow popups and try again.')
+          return
+        }
+        
+        // Listen for popup close or success message
+        const checkClosed = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkClosed)
+            // Check if user is logged in after popup closes
+            window.location.reload()
+          }
+        }, 1000)
+        
+        // Listen for messages from popup
+        const messageHandler = (event: MessageEvent) => {
+          if (event.origin === window.location.origin) {
+            if (event.data === 'oauth-success') {
+              clearInterval(checkClosed)
+              popup.close()
+              window.location.reload()
+            }
+          }
+        }
+        
+        window.addEventListener('message', messageHandler)
+        
+        // Clean up after 5 minutes
+        setTimeout(() => {
+          clearInterval(checkClosed)
+          window.removeEventListener('message', messageHandler)
+          if (!popup.closed) {
+            popup.close()
+          }
+        }, 300000)
       }
     } catch (err) {
       setError('Failed to initialize OAuth registration')

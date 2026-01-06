@@ -134,8 +134,18 @@ export default function AuthCallbackPage() {
 
         document.cookie = `au_auth_token=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`
 
-        // Redirect to home
-        router.push('/home')
+        // Check if we're in a popup window
+        if (window.opener) {
+          // Send success message to parent window
+          window.opener.postMessage('oauth-success', window.location.origin)
+          // Close popup after a short delay
+          setTimeout(() => {
+            window.close()
+          }, 500)
+        } else {
+          // Redirect to home if not in popup
+          router.push('/home')
+        }
 
       } catch (err) {
         console.error('OAuth callback error:', err)
