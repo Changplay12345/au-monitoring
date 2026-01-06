@@ -10,16 +10,20 @@ const protectedRoutes = [
   '/home',
   '/course-monitoring',
   '/dashboard',
-  '/admin-panel',
-  '/apis-services',
   '/documentation',
   '/project-overview',
-  '/registration-simulator',
+  '/tqf-master',
   '/simple',
   '/test',
+]
+
+// Admin-only routes
+const adminRoutes = [
+  '/admin-panel',
+  '/apis-services',
+  '/registration-simulator',
   '/test-restaurant',
   '/tqf-desktop',
-  '/tqf-master',
 ]
 
 export function middleware(request: NextRequest) {

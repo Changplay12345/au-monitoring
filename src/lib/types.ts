@@ -4,6 +4,7 @@ export interface User {
   username: string
   email: string
   name: string | null
+  role: 'admin' | 'user'
 }
 
 export interface AuthState {

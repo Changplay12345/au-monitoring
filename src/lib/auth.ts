@@ -8,12 +8,16 @@ const USERS_USERNAME_COL = 'username'
 const USERS_EMAIL_COL = 'email'
 const USERS_PASSWORD_COL = 'password'
 const USERS_NAME_COL = 'name'
+const USERS_ROLE_COL = 'role'
+
+// Role types
+export type UserRole = 'admin' | 'user'
 
 // Find user by username
 export async function findUserByUsername(username: string): Promise<Record<string, unknown> | null> {
   const { data, error } = await supabase
     .from(USERS_TABLE)
-    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}`)
+    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}`)
     .eq(USERS_USERNAME_COL, username)
     .limit(1)
     .single()
@@ -52,6 +56,7 @@ export async function loginUser(username: string, password: string): Promise<Use
     username: String(row[USERS_USERNAME_COL]),
     email: String(row[USERS_EMAIL_COL]),
     name: row[USERS_NAME_COL] ? String(row[USERS_NAME_COL]) : null,
+    role: (row[USERS_ROLE_COL] as 'admin' | 'user') || 'user',
   }
 }
 
@@ -100,11 +105,69 @@ export function getUserSession(): User | null {
   return null
 }
 
-// Clear user session (client-side)
-export function clearUserSession(): void {
+// Clear user session
+export function clearUserSession() {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem('au_monitoring_user')
     clearAuthCookie()
+  }
+}
+
+// Role management functions
+export async function updateUserRole(userId: string, role: UserRole): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from(USERS_TABLE)
+      .update({ [USERS_ROLE_COL]: role })
+      .eq(USERS_ID_COL, userId)
+
+    return !error
+  } catch (error) {
+    console.error('Error updating user role:', error)
+    return false
+  }
+}
+
+export async function getAllUsers(): Promise<Record<string, unknown>[]> {
+  try {
+    const { data, error } = await supabase
+      .from(USERS_TABLE)
+      .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}`)
+      .order(USERS_USERNAME_COL)
+
+    if (error) throw error
+    return data || []
+  } catch (error) {
+    console.error('Error fetching users:', error)
+    return []
+  }
+}
+
+export async function deleteUser(userId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from(USERS_TABLE)
+      .delete()
+      .eq(USERS_ID_COL, userId)
+
+    return !error
+  } catch (error) {
+    console.error('Error deleting user:', error)
+    return false
+  }
+}
+
+export async function updateUserInfo(userId: string, updates: { name?: string; email?: string }): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from(USERS_TABLE)
+      .update(updates)
+      .eq(USERS_ID_COL, userId)
+
+    return !error
+  } catch (error) {
+    console.error('Error updating user info:', error)
+    return false
   }
 }
 

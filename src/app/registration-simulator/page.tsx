@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GCPLayout } from '@/components/GCPLayout';
+import { RoleGuard } from '@/components/RoleGuard';
 import { supabase } from '@/lib/supabase';
 import { 
   Play, 
@@ -552,7 +553,8 @@ export default function RegistrationSimulatorPage() {
   const fillRate = totalSeats > 0 ? ((usedSeats / totalSeats) * 100).toFixed(1) : '0';
 
   return (
-    <GCPLayout activeFeature="Registration Simulator" projectName="Registration Simulator">
+    <RoleGuard requiredRole="admin">
+      <GCPLayout activeFeature="Registration Simulator" projectName="Registration Simulator">
       <div className="min-h-screen bg-white">
         {/* Hero Section */}
         <section className="bg-gradient-to-br from-red-600 via-red-500 to-red-700 text-white">
@@ -1116,5 +1118,6 @@ export default function RegistrationSimulatorPage() {
         </section>
       </div>
     </GCPLayout>
+    </RoleGuard>
   );
 }

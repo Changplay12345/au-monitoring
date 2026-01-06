@@ -27,6 +27,7 @@ import {
   Database
 } from 'lucide-react'
 import { cn } from './utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface SidebarItem {
   icon: React.ReactNode
@@ -35,6 +36,7 @@ interface SidebarItem {
   hasStar?: boolean
   isActive?: boolean
   href?: string
+  adminOnly?: boolean
 }
 
 interface GCPSidebarProps {
@@ -46,6 +48,7 @@ interface GCPSidebarProps {
 }
 
 export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', onItemClick, onNavigate }: GCPSidebarProps) {
+  const { user } = useAuth()
   // Navigation URLs for all pages
   const pageUrls: Record<string, string> = {
     'Home Page': '/home',
@@ -69,10 +72,14 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
   const productItems: SidebarItem[] = [
     { icon: <Brain className="w-5 h-5" />, label: 'Course Monitoring', hasChevron: true, href: pageUrls['Course Monitoring'] },
     { icon: <Folder className="w-5 h-5" />, label: 'TQF Master 2.0', hasChevron: true, href: pageUrls['TQF Master 2.0'] },
-    { icon: <Database className="w-5 h-5" />, label: 'Registration Simulator', hasChevron: true, href: pageUrls['Registration Simulator'] },
-    { icon: <Code2 className="w-5 h-5" />, label: 'APIs & Services', hasChevron: true, href: pageUrls['APIs & Services'] },
-    { icon: <Users className="w-5 h-5" />, label: 'Admin Panel', hasChevron: true, href: pageUrls['Admin Panel'] },
+    { icon: <Database className="w-5 h-5" />, label: 'Registration Simulator', hasChevron: true, href: pageUrls['Registration Simulator'], adminOnly: true },
+    { icon: <Code2 className="w-5 h-5" />, label: 'APIs & Services', hasChevron: true, href: pageUrls['APIs & Services'], adminOnly: true },
+    { icon: <Users className="w-5 h-5" />, label: 'Admin Panel', hasChevron: true, href: pageUrls['Admin Panel'], adminOnly: true },
   ]
+
+  // Filter items based on user role
+  const filteredTopItems = topItems.filter(item => !item.adminOnly || user?.role === 'admin')
+  const filteredProductItems = productItems.filter(item => !item.adminOnly || user?.role === 'admin')
 
   const handleItemClick = (item: SidebarItem) => {
     // If item has external URL and it's not the current active item, navigate
@@ -123,7 +130,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
         <div className="flex-1 overflow-y-auto">
           {/* Top navigation */}
           <nav className="py-2">
-            {topItems.map((item) => (
+            {filteredTopItems.map((item) => (
               <button
                 key={item.label}
                 onClick={() => handleItemClick(item)}
@@ -150,7 +157,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
           <div className="pb-4">
             <h3 className="text-sm font-medium text-gray-800 px-6 mb-2">Feature</h3>
             <nav>
-              {productItems.map((item) => (
+              {filteredProductItems.map((item) => (
                 <button
                   key={item.label}
                   onClick={() => handleItemClick(item)}
