@@ -69,18 +69,23 @@ export default function RegisterPage() {
         const checkClosed = setInterval(() => {
           if (popup.closed) {
             clearInterval(checkClosed)
-            // Check if user is logged in after popup closes
-            window.location.reload()
+            // Redirect to home after popup closes
+            window.location.href = '/home'
           }
         }, 1000)
         
         // Listen for messages from popup
         const messageHandler = (event: MessageEvent) => {
           if (event.origin === window.location.origin) {
-            if (event.data === 'oauth-success') {
+            if (event.data?.type === 'oauth-success' && event.data?.user) {
               clearInterval(checkClosed)
+              // Store user data in localStorage
+              localStorage.setItem('au_monitoring_user', JSON.stringify(event.data.user))
+              // Set cookie
+              document.cookie = `au_auth_token=${encodeURIComponent(JSON.stringify(event.data.user))}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`
               popup.close()
-              window.location.reload()
+              // Redirect to home on success
+              window.location.href = '/home'
             }
           }
         }

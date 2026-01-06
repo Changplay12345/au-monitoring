@@ -72,11 +72,10 @@ export default function AuthCallbackPage() {
         const provider = oauthUser.app_metadata?.provider || 'oauth'
         const avatarUrl = oauthUser.user_metadata?.avatar_url || oauthUser.user_metadata?.picture || null
 
-        // Use service role key to bypass RLS for user creation/update
-        // Fallback to regular client if service key not available
+        // Use anon key for client-side operations (RLS policies handle permissions)
         const serviceClient = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
 
         // Check if user exists in our users table
@@ -128,7 +127,7 @@ export default function AuthCallbackPage() {
           user = newUser
         }
 
-        // Set auth cookie
+        // Set auth cookie and localStorage
         const userData = {
           id: user.id,
           username: user.username,
@@ -139,12 +138,16 @@ export default function AuthCallbackPage() {
           auth_provider: user.auth_provider || provider
         }
 
+        // Store in localStorage (for useAuth hook)
+        localStorage.setItem('au_monitoring_user', JSON.stringify(userData))
+        
+        // Set cookie (for middleware)
         document.cookie = `au_auth_token=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax`
 
         // Check if we're in a popup window
         if (window.opener) {
-          // Send success message to parent window
-          window.opener.postMessage('oauth-success', window.location.origin)
+          // Send user data to parent window
+          window.opener.postMessage({ type: 'oauth-success', user: userData }, window.location.origin)
           // Close popup after a short delay
           setTimeout(() => {
             window.close()

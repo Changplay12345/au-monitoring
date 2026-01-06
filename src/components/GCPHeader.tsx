@@ -86,10 +86,19 @@ export function GCPHeader({
         <div className="relative ml-2">
           <button 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className={cn(
-              "rounded-full transition-all",
-              isProfileOpen ? "ring-2 ring-red-300 ring-offset-2" : "hover:ring-2 hover:ring-red-300"
-            )}
+            className="transition-all"
+            style={{
+              borderRadius: '50%',
+              padding: 0,
+              outline: 'none',
+              boxShadow: isProfileOpen ? '0 0 0 2px #fca5a5' : 'none'
+            }}
+            onMouseEnter={(e) => {
+              if (!isProfileOpen) e.currentTarget.style.boxShadow = '0 0 0 2px #fca5a5'
+            }}
+            onMouseLeave={(e) => {
+              if (!isProfileOpen) e.currentTarget.style.boxShadow = 'none'
+            }}
             aria-label="User menu"
           >
             <UserAvatar user={user} size="sm" showProviderBadge={true} />
