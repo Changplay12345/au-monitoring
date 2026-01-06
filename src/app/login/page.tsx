@@ -48,17 +48,26 @@ function LoginContent() {
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'facebook') => {
-    // OAuth login will redirect to provider
-    // For now, show a message that OAuth is being set up
-    setError(`${provider.charAt(0).toUpperCase() + provider.slice(1)} login is being configured. Please use username/email login for now.`)
-    
-    // When Supabase OAuth is configured, uncomment this:
-    // const { data, error } = await supabase.auth.signInWithOAuth({
-    //   provider: provider,
-    //   options: {
-    //     redirectTo: `${window.location.origin}/auth/callback`
-    //   }
-    // })
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) {
+        setError(error.message)
+      }
+    } catch (err) {
+      setError('Failed to initialize OAuth login')
+    }
   }
 
   return (

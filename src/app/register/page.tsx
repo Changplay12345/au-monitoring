@@ -26,7 +26,26 @@ export default function RegisterPage() {
   }, [])
 
   const handleOAuthRegister = async (provider: 'google' | 'facebook') => {
-    setError(`${provider.charAt(0).toUpperCase() + provider.slice(1)} registration is being configured. Please use email registration for now.`)
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) {
+        setError(error.message)
+      }
+    } catch (err) {
+      setError('Failed to initialize OAuth registration')
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
