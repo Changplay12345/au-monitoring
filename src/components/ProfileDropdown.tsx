@@ -124,10 +124,10 @@ export function ProfileDropdown({ user, onLogout, isOpen, onClose }: ProfileDrop
             <p className="text-sm text-gray-500 truncate">
               {user?.email || 'No email'}
             </p>
-            <button className="mt-1 text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1 transition-colors">
+            <a href="/account" className="mt-1 text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1 transition-colors">
               View account
               <ExternalLink className="w-3 h-3" />
-            </button>
+            </a>
           </div>
         </div>
       </div>

@@ -15,6 +15,7 @@ const protectedRoutes = [
   '/tqf-master',
   '/simple',
   '/test',
+  '/account',
 ]
 
 // Admin-only routes
