@@ -38,7 +38,10 @@ function LoginContent() {
       return
     }
 
-    const result = await login(username, password)
+    // Get redirect URL from query params
+    const redirectTo = searchParams.get('redirect') || '/home'
+    
+    const result = await login(username, password, redirectTo)
     if (!result.success) {
       setError(result.error || 'Login failed')
     } else {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CSVCourse } from '@/components/CourseBlock'
-import { loadCoursesFromCSV, timeToMinutes } from '@/lib/courseData'
+import { timeToMinutes } from '@/lib/courseData'
 import { CourseLane } from './CourseLane'
 import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
@@ -27,6 +27,7 @@ const TIME_TICKS = Array.from({ length: NUM_CELLS + 1 }, (_, i) => {
 
 interface SwimlaneScheduleProps {
   day: 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
+  courses?: CSVCourse[]  // Optional: pass courses from parent, otherwise will be empty
 }
 
 // Group courses by course code
@@ -42,19 +43,15 @@ function groupByCourseCode(courses: CSVCourse[]): Map<string, CSVCourse[]> {
   return grouped
 }
 
-export function SwimlaneSchedule({ day }: SwimlaneScheduleProps) {
-  const [courses, setCourses] = useState<CSVCourse[]>([])
+export function SwimlaneSchedule({ day, courses: propCourses = [] }: SwimlaneScheduleProps) {
   const [hoveredCourse, setHoveredCourse] = useState<string | null>(null)
-  const [selectedSections, setSelectedSections] = useState<CSVCourse[] | null>(null)
+  // Store only identifiers so we can look up latest real-time data
+  const [selectedSectionIds, setSelectedSectionIds] = useState<{courseCode: string, section: string}[] | null>(null)
 
-  // Load courses on mount
-  useEffect(() => {
-    loadCoursesFromCSV().then(allCourses => {
-      // Filter for the specified day only
-      const dayCourses = allCourses.filter(c => c.day === day)
-      setCourses(dayCourses)
-    })
-  }, [day])
+  // Filter courses for the specified day
+  const courses = useMemo(() => {
+    return propCourses.filter(c => c.day === day)
+  }, [propCourses, day])
 
   // Group courses by course code
   const courseGroups = useMemo(() => groupByCourseCode(courses), [courses])
@@ -65,14 +62,23 @@ export function SwimlaneSchedule({ day }: SwimlaneScheduleProps) {
     [courseGroups]
   )
 
+  // Get the latest section data for selected sections (real-time updates)
+  const selectedSections = useMemo(() => {
+    if (!selectedSectionIds) return null
+    return selectedSectionIds
+      .map(id => courses.find(c => c.courseCode === id.courseCode && c.section === id.section))
+      .filter((c): c is CSVCourse => c !== undefined)
+  }, [selectedSectionIds, courses])
+
   // Handle section click - show popover
   const handleSectionClick = (sections: CSVCourse[]) => {
-    setSelectedSections(sections)
+    // Store only identifiers so we can look up latest data
+    setSelectedSectionIds(sections.map(s => ({ courseCode: s.courseCode, section: s.section })))
   }
 
   // Close popover
   const closePopover = useCallback(() => {
-    setSelectedSections(null)
+    setSelectedSectionIds(null)
   }, [])
 
   // ESC key handler - close popup, prevent sidebar toggle

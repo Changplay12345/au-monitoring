@@ -59,7 +59,7 @@ export function GCPHeader({
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
           <span className="text-xl font-bold text-red-600 tracking-tight">AU</span>
-          <span className="text-xl font-light text-gray-700">USR&MP</span>
+          <span className="text-xl font-light text-gray-700"> Monitoring</span>
         </button>
 
         {/* Project selector - dynamic based on current feature */}

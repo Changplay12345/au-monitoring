@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useCourses } from '@/hooks/useCourses'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useCourses, DatabaseMode } from '@/hooks/useCourses'
 import { DAYS } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
 import { CourseBlock, CSVCourse } from './CourseBlock'
-import { loadCoursesFromCSV, groupCoursesByDay } from '@/lib/courseData'
+import { CourseGroup as SupabaseCourseGroup } from '@/lib/types'
 import { SwimlaneSchedule } from './SwimlaneSchedule'
 
 // Time axis configuration
@@ -77,9 +77,11 @@ export function CourseGrid() {
     isLoading,
     filters,
     setSearch,
-    setSession,
     setActiveDay,
     refresh,
+    databaseMode,
+    setDatabaseMode,
+    isSimulatorRunning,
   } = useCourses()
 
   // Check if any courses exist
@@ -93,7 +95,8 @@ export function CourseGrid() {
   const [isAnimating, setIsAnimating] = useState(false)
 
   // Selected course group for detail panel (Option C)
-  const [selectedGroup, setSelectedGroup] = useState<CSVCourse[] | null>(null)
+  // Store course identifiers instead of full data so we can look up latest data
+  const [selectedGroupIds, setSelectedGroupIds] = useState<{courseCode: string, section: string}[] | null>(null)
 
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -115,7 +118,7 @@ export function CourseGrid() {
 
   // Prevent body scroll when popup is open
   useEffect(() => {
-    if (selectedGroup) {
+    if (selectedGroupIds) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
@@ -123,19 +126,20 @@ export function CourseGrid() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [selectedGroup])
+  }, [selectedGroupIds])
 
   // Popup width in pixels for edge-to-edge snapping
   const POPUP_WIDTH = 500
 
   // Handle course block click - show detail panel
   const handleCourseClick = (group: CSVCourse[]) => {
-    setSelectedGroup(group)
+    // Store only identifiers so we can look up latest data
+    setSelectedGroupIds(group.map(c => ({ courseCode: c.courseCode, section: c.section })))
   }
 
   // Close detail panel
   const closeDetailPanel = () => {
-    setSelectedGroup(null)
+    setSelectedGroupIds(null)
   }
 
   // Handle day change with slide animation (only ALL <-> Day, not Day <-> Day)
@@ -214,27 +218,45 @@ export function CourseGrid() {
     })
   }
 
-  // CSV courses state
-  const [coursesByDay, setCoursesByDay] = useState<Record<string, CourseGroup[]>>({})
-
-  // Load courses from CSV on mount
-  useEffect(() => {
-    loadCoursesFromCSV().then(courses => {
-      const grouped = groupCoursesByDay(courses)
-      const groupedByDay: Record<string, CourseGroup[]> = {}
-      
-      Object.entries(grouped).forEach(([day, dayCourses]) => {
-        groupedByDay[day] = groupOverlappingCourses(dayCourses)
-      })
-      
-      setCoursesByDay(groupedByDay)
+  // Convert Supabase groupedByDay to CSVCourse format for timetable
+  const coursesByDay = useMemo((): Record<string, CourseGroup[]> => {
+    const result: Record<string, CourseGroup[]> = {}
+    
+    Object.entries(groupedByDay).forEach(([day, groups]: [string, SupabaseCourseGroup[]]) => {
+      result[day] = groups.map((group: SupabaseCourseGroup) => ({
+        courses: group.items.map(item => ({
+          courseCode: item.code,
+          prefix: item.prefix,
+          courseTitle: item.title,
+          section: item.section,
+          seatLimit: item.seatLimit ?? 0,
+          seatUsed: item.seatUsed ?? 0,
+          seatLeft: item.seatLeft ?? 0,
+          startTime: item.start,
+          endTime: item.end,
+          day: item.day,
+          instructor: item.instructor,
+        } as CSVCourse)),
+        startMin: group.min,
+        endMin: group.max,
+      }))
     })
-  }, [])
+    
+    return result
+  }, [groupedByDay])
 
   // Get all courses for search suggestions (after coursesByDay is declared)
   const allCourses = Object.values(coursesByDay).flatMap(groups => 
     groups.flatMap(g => g.courses)
   )
+
+  // Get the latest course data for selected group (real-time updates)
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupIds) return null
+    return selectedGroupIds
+      .map(id => allCourses.find(c => c.courseCode === id.courseCode && c.section === id.section))
+      .filter((c): c is CSVCourse => c !== undefined)
+  }, [selectedGroupIds, allCourses])
 
   // Filter courses for search dropdown (smart search)
   const searchResults = searchInput.trim() 
@@ -435,13 +457,17 @@ export function CourseGrid() {
             )}
           </div>
           <select
-            value={filters.session}
-            onChange={(e) => setSession(e.target.value as 'ALL' | 'Morning' | 'Afternoon')}
-            className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            value={databaseMode}
+            onChange={(e) => setDatabaseMode(e.target.value as DatabaseMode)}
+            className={cn(
+              "px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 font-medium",
+              databaseMode === 'test' 
+                ? "border-orange-400 bg-orange-50 text-orange-700" 
+                : "border-gray-200 bg-white text-gray-700"
+            )}
           >
-            <option value="ALL">Session: ALL</option>
-            <option value="Morning">Morning</option>
-            <option value="Afternoon">Afternoon</option>
+            <option value="default">Database: Default</option>
+            <option value="test">Database: Test {isSimulatorRunning ? '🟢' : ''}</option>
           </select>
                     <button
             onClick={refresh}
@@ -452,6 +478,18 @@ export function CourseGrid() {
           </button>
         </div>
       </header>
+
+      {/* Loading overlay when switching databases */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <RefreshCw className="w-12 h-12 text-red-600 animate-spin" />
+            <p className="text-lg font-medium text-gray-700">
+              Loading {databaseMode === 'test' ? 'Test' : 'Default'} Database...
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Timetable container - relative for absolute positioned children */}
       <div className="relative">
@@ -467,7 +505,7 @@ export function CourseGrid() {
               transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
-            <SwimlaneSchedule day={filters.activeDay as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'} />
+            <SwimlaneSchedule day={filters.activeDay as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'} courses={allCourses} />
           </div>
         )}
 

@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Float up animation for seat changes */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 1.5s ease-out forwards;
+}
+
 :root {
   --background: #f6f7f9;
   --foreground: #1f2937;
@@ -56,4 +72,256 @@ body {
 
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+/* ========================================
+   TQF MASTER 2.0 STYLES
+   ======================================== */
+
+/* AU Color System for TQF */
+:root {
+  --au-red: #FE1414;
+  --au-red-dark: #D50F0F;
+  --au-navy: #2C3D5B;
+  --au-dark-bg: #3B3B3B;
+  --au-light-bg: #F4F4F4;
+  --au-page-bg: #F4F4F4;
+  --au-card-bg: #FFFFFF;
+  --au-text-main: #111111;
+  --au-text-muted: #777777;
+  --au-border-soft: #E0E0E0;
+  --au-white: #FFFFFF;
+}
+
+/* AU Page Title with red underline */
+.au-page-title {
+  font-weight: 700;
+  font-size: 32px;
+  color: var(--au-text-main);
+  position: relative;
+  display: inline-block;
+}
+
+.au-page-title::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: var(--au-red);
+}
+
+/* AU Section Title (white version) */
+.au-section-title {
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--au-white);
+  position: relative;
+  display: inline-block;
+}
+
+.au-section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: var(--au-red);
+}
+
+/* AU Container */
+.au-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 40px;
+}
+
+/* AU Tabs */
+.au-tab {
+  padding: 10px 20px;
+  border-radius: 0;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.au-tab-active {
+  background: var(--au-red);
+  color: var(--au-white);
+}
+
+.au-tab-inactive {
+  background: #333333;
+  color: var(--au-white);
+}
+
+.au-tab-inactive:hover {
+  background: #444444;
+}
+
+/* AU Upload Card */
+.au-upload-card {
+  background: var(--au-white);
+  border: 1px solid var(--au-border-soft);
+  border-radius: 4px;
+  border-top: 4px solid var(--au-red);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  padding: 48px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.au-upload-card:hover,
+.au-upload-card.drag-active {
+  border-color: var(--au-red);
+  background: rgba(254, 20, 20, 0.02);
+}
+
+.au-upload-icon {
+  width: 60px;
+  height: 60px;
+  border: 2px solid #DDDDDD;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+}
+
+.au-upload-icon svg {
+  color: var(--au-red);
+}
+
+/* AU Primary Button */
+.au-btn-primary {
+  background: var(--au-red);
+  color: var(--au-white);
+  font-weight: 600;
+  padding: 12px 32px;
+  border-radius: 4px;
+  border: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.au-btn-primary:hover:not(:disabled) {
+  background: var(--au-red-dark);
+}
+
+.au-btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+  background: #C00D0D;
+}
+
+.au-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* AU Secondary Button */
+.au-btn-secondary {
+  background: var(--au-white);
+  color: var(--au-text-main);
+  font-weight: 500;
+  padding: 10px 24px;
+  border-radius: 4px;
+  border: 1px solid var(--au-border-soft);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.au-btn-secondary:hover {
+  background: var(--au-card-bg);
+}
+
+/* AU Dark Section */
+.au-dark-section {
+  background: var(--au-dark-bg);
+  padding: 80px 40px;
+}
+
+/* AU Feature Cards */
+.au-feature-card {
+  padding: 32px 24px;
+  border-radius: 4px;
+  color: var(--au-white);
+  text-align: center;
+  transition: filter 0.2s ease;
+}
+
+.au-feature-card:hover {
+  filter: brightness(1.1);
+}
+
+.au-feature-card-primary {
+  background: var(--au-red);
+}
+
+.au-feature-card-secondary {
+  background: var(--au-navy);
+}
+
+.au-feature-card-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+}
+
+.au-feature-card-title {
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.au-feature-card-text {
+  font-size: 14px;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+/* AU Footer */
+.au-footer {
+  background: var(--au-card-bg);
+  padding: 16px;
+  text-align: center;
+}
+
+.au-footer-text {
+  font-size: 13px;
+  color: var(--au-text-muted);
+}
+
+/* TQF Responsive */
+@media (max-width: 768px) {
+  .au-container {
+    padding: 24px 16px;
+  }
+  
+  .au-page-title {
+    font-size: 24px;
+  }
+  
+  .au-dark-section {
+    padding: 48px 16px;
+  }
+  
+  .au-tab {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  
+  .au-feature-cards {
+    flex-direction: column;
+  }
 }

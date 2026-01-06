@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { User, AuthState } from '@/lib/types'
 import { 
   loginUser as authLogin, 
@@ -38,8 +38,8 @@ export function useAuth() {
     }
   }, [])
 
-  // Login function
-  const login = useCallback(async (username: string, password: string) => {
+  // Login function with redirect support
+  const login = useCallback(async (username: string, password: string, redirectTo?: string) => {
     setState(prev => ({ ...prev, isLoading: true }))
     
     try {
@@ -50,7 +50,10 @@ export function useAuth() {
         isLoading: false,
         isAuthenticated: true,
       })
-      router.push('/home')
+      
+      // Redirect to the requested page or default to /home
+      const destination = redirectTo || '/home'
+      router.push(destination)
       return { success: true, user }
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }))

@@ -5,26 +5,55 @@ import { supabase } from '@/lib/supabase'
 import { Course, NormalizedCourse, CourseGroup, FilterState, DAYS } from '@/lib/types'
 import { normalizeCourse, toMinutes } from '@/lib/utils'
 
-const TABLE_NAME = 'data_vme'
+const PROD_TABLE = 'data_vme'
+const TEST_TABLE = 'data_vme_test'
+
+export type DatabaseMode = 'default' | 'test'
 
 export function useCourses() {
   const [rawCourses, setRawCourses] = useState<Course[]>([])
-  const [isLoading, setIsLoading] = useState(false) // Start as not loading
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSimulatorRunning, setIsSimulatorRunning] = useState(false)
+  const [databaseMode, setDatabaseModeState] = useState<DatabaseMode>('default')
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     session: 'ALL',
     activeDay: 'ALL',
   })
 
+  // Derive currentTable from databaseMode
+  const currentTable = databaseMode === 'test' ? TEST_TABLE : PROD_TABLE
+
+  // Check simulator status (for display purposes only, doesn't auto-switch)
+  useEffect(() => {
+    const checkSimulatorStatus = async () => {
+      try {
+        const res = await fetch('/api/simulator/status')
+        if (res.ok) {
+          const data = await res.json()
+          setIsSimulatorRunning(data.isRunning)
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+
+    checkSimulatorStatus()
+    const interval = setInterval(checkSimulatorStatus, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Fetch courses from Supabase
   const fetchCourses = useCallback(async () => {
+    const tableToFetch = databaseMode === 'test' ? TEST_TABLE : PROD_TABLE
+    console.log('[useCourses] fetchCourses called, fetching from:', tableToFetch)
     setIsLoading(true)
     setError(null)
 
     try {
       const { data, error: fetchError } = await supabase
-        .from(TABLE_NAME)
+        .from(tableToFetch)
         .select('*')
 
       if (fetchError) {
@@ -34,6 +63,7 @@ export function useCourses() {
         return
       }
 
+      console.log('[useCourses] Fetched', data?.length, 'courses from', tableToFetch)
       setRawCourses((data || []).filter(Boolean) as Course[])
       setIsLoading(false)
     } catch (error) {
@@ -41,44 +71,94 @@ export function useCourses() {
       setError('Failed to fetch courses')
       setIsLoading(false)
     }
-  }, [])
+  }, [databaseMode])
 
   // Initial fetch - removed to prevent auto-loading
   // useEffect(() => {
   //   fetchCourses()
   // }, [fetchCourses])
 
-  // Subscribe to real-time updates
+  // Re-fetch when databaseMode changes
   useEffect(() => {
+    console.log('[useCourses] databaseMode changed to:', databaseMode, '- fetching...')
+    fetchCourses()
+  }, [databaseMode, fetchCourses])
+
+  // Subscribe to real-time updates for live seat changes
+  useEffect(() => {
+    console.log('[useCourses] Setting up realtime subscription for table:', currentTable)
+    
     const channel = supabase
-      .channel('courses-realtime')
+      .channel(`courses-realtime-${currentTable}-${Date.now()}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_NAME },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: currentTable 
+        },
         (payload) => {
+          console.log('[useCourses] Realtime event received:', payload.eventType, payload)
+          
           if (payload.eventType === 'INSERT') {
+            console.log('[useCourses] INSERT - New course added')
             setRawCourses(prev => [...prev, payload.new as Course])
           } else if (payload.eventType === 'UPDATE') {
-            setRawCourses(prev => 
-              prev.map(c => 
-                c['Course Code'] === (payload.new as Course)['Course Code'] 
-                  ? payload.new as Course 
+            const updatedCourse = payload.new as Course
+            console.log('[useCourses] UPDATE - Course:', updatedCourse['Course Code'], 
+              'Section:', updatedCourse['Section'],
+              'Seat Used:', updatedCourse['Seat Used'],
+              'Seat Left:', updatedCourse['Seat Left'])
+            
+            // Find and update the specific course
+            setRawCourses(prev => {
+              const updated = prev.map(c => 
+                c['Course Code'] === updatedCourse['Course Code'] &&
+                c['Section'] === updatedCourse['Section']
+                  ? updatedCourse 
                   : c
               )
-            )
+              
+              // Log if course was actually updated
+              const wasUpdated = prev.some(c => 
+                c['Course Code'] === updatedCourse['Course Code'] &&
+                c['Section'] === updatedCourse['Section']
+              )
+              
+              if (wasUpdated) {
+                console.log('[useCourses] Successfully updated course in state')
+              } else {
+                console.log('[useCourses] Course not found in current state')
+              }
+              
+              return updated
+            })
           } else if (payload.eventType === 'DELETE') {
+            console.log('[useCourses] DELETE - Course removed')
             setRawCourses(prev => 
               prev.filter(c => c['Course Code'] !== (payload.old as Course)['Course Code'])
             )
           }
         }
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.log('[useCourses] Realtime subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[useCourses] ✅ Successfully subscribed to realtime updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('[useCourses] ⚠️ Realtime channel error (will retry):', err?.message || 'Unknown error')
+        } else if (status === 'TIMED_OUT') {
+          console.warn('[useCourses] ⚠️ Realtime subscription timed out')
+        } else if (status === 'CLOSED') {
+          console.log('[useCourses] Realtime channel closed')
+        }
+      })
 
     return () => {
+      console.log('[useCourses] Cleaning up realtime subscription for:', currentTable)
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [currentTable])
 
   // Normalize courses
   const normalizedCourses = useMemo(() => {
@@ -169,6 +249,11 @@ export function useCourses() {
     setFilters(prev => ({ ...prev, activeDay }))
   }, [])
 
+  // Set database mode (triggers re-fetch via useEffect)
+  const setDatabaseMode = useCallback((mode: DatabaseMode) => {
+    setDatabaseModeState(mode)
+  }, [])
+
   return {
     courses: normalizedCourses,
     filteredCourses,
@@ -180,5 +265,9 @@ export function useCourses() {
     setSession,
     setActiveDay,
     refresh: fetchCourses,
+    isSimulatorRunning,
+    currentTable,
+    databaseMode,
+    setDatabaseMode,
   }
 }

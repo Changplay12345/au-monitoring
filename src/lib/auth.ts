@@ -57,11 +57,31 @@ export async function loginUser(username: string, password: string): Promise<Use
 
 // Session storage keys
 const SESSION_KEY = 'au_monitoring_user'
+const AUTH_COOKIE = 'au_auth_token'
+
+// Set auth cookie (for middleware detection)
+function setAuthCookie(user: User): void {
+  if (typeof window !== 'undefined') {
+    // Create a simple token from user data
+    const token = btoa(JSON.stringify({ id: user.id, ts: Date.now() }))
+    // Set cookie with 7 day expiry
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString()
+    document.cookie = `${AUTH_COOKIE}=${token}; path=/; expires=${expires}; SameSite=Lax`
+  }
+}
+
+// Clear auth cookie
+function clearAuthCookie(): void {
+  if (typeof window !== 'undefined') {
+    document.cookie = `${AUTH_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+  }
+}
 
 // Store user in session (client-side)
 export function storeUserSession(user: User): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+    setAuthCookie(user)
   }
 }
 
@@ -84,6 +104,7 @@ export function getUserSession(): User | null {
 export function clearUserSession(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(SESSION_KEY)
+    clearAuthCookie()
   }
 }
 

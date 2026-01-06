@@ -36,7 +36,7 @@ const documents: Document[] = [
     description: 'Complete software requirements and technical specifications ',
     type: 'requirements',
     size: '432 KB',
-    lastUpdated: 'December 2024',
+    lastUpdated: 'December 2025',
     downloadUrl: '/Project_SRS_proto.pdf',
     viewUrl: '/Project_SRS_proto.pdf',
     icon: <FileText className="w-6 h-6" />,
@@ -54,7 +54,7 @@ const documents: Document[] = [
   //   description: 'Complete software requirements and technical specifications for TQF Master 2.0 system.',
   //   type: 'requirements',
   //   size: '248 KB',
-  //   lastUpdated: 'December 2024',
+  //   lastUpdated: 'December 2025',
   //   downloadUrl: '/TQF_Software Requirements Specification.pdf',
   //   viewUrl: '/TQF_Software Requirements Specification.pdf',
   //   icon: <FileText className="w-6 h-6" />,
@@ -72,7 +72,7 @@ const documents: Document[] = [
     description: 'Comprehensive user guide with step-by-step instructions for using TQF Master 2.0.',
     type: 'user-guide',
     size: '811 KB',
-    lastUpdated: 'December 2024',
+    lastUpdated: 'December 2025',
     downloadUrl: '/TQF_UserManual.pdf',
     viewUrl: '/TQF_UserManual.pdf',
     icon: <Users className="w-6 h-6" />,
@@ -90,7 +90,7 @@ const documents: Document[] = [
   //   description: 'Detailed software requirements and system architecture for USR platform.',
   //   type: 'requirements',
   //   size: '289 KB',
-  //   lastUpdated: 'December 2024',
+  //   lastUpdated: 'December 2025',
   //   downloadUrl: '/USR_Software Requirements Specification.pdf',
   //   viewUrl: '/USR_Software Requirements Specification.pdf',
   //   icon: <FileText className="w-6 h-6" />,
@@ -108,7 +108,7 @@ const documents: Document[] = [
     description: 'Complete user manual for the USR student registration and monitoring platform.',
     type: 'user-guide',
     size: '881 KB',
-    lastUpdated: 'December 2024',
+    lastUpdated: 'December 2025',
     downloadUrl: '/USR_UserManual.pdf',
     viewUrl: '/USR_UserManual.pdf',
     icon: <Users className="w-6 h-6" />,
@@ -126,7 +126,7 @@ const documents: Document[] = [
     description: 'Detailed technical implementation guidelines and system architecture',
     type: 'technical',
     size: 'No file',
-    lastUpdated: 'December 2024',
+    lastUpdated: 'December 2025',
     downloadUrl: '/technical-specifications.pdf',
     icon: <Shield className="w-6 h-6" />,
     features: [
@@ -142,7 +142,7 @@ const documents: Document[] = [
     description: 'RESTful API endpoints and integration documentation',
     type: 'api',
     size: 'No file',
-    lastUpdated: 'December 2024',
+    lastUpdated: 'December 2025',
     downloadUrl: '/api-documentation.pdf',
     icon: <Zap className="w-6 h-6" />,
     features: [
@@ -237,7 +237,7 @@ export default function DocumentationPage() {
               <div className="flex flex-wrap justify-center gap-4 text-sm">
                 <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Updated December 2024</span>
+                  <span>Updated December 2025</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
                   <Users className="w-4 h-4" />
