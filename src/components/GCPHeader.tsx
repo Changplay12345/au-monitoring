@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from './utils'
 import { ProfileDropdown } from './ProfileDropdown'
+import { UserAvatar } from './UserAvatar'
 import { User } from '@/lib/types'
 
 interface GCPHeaderProps {
@@ -86,12 +87,12 @@ export function GCPHeader({
           <button 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className={cn(
-              "w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white flex items-center justify-center text-sm font-medium transition-all",
+              "rounded-full transition-all",
               isProfileOpen ? "ring-2 ring-red-300 ring-offset-2" : "hover:ring-2 hover:ring-red-300"
             )}
             aria-label="User menu"
           >
-            {getInitials(user?.name, user?.username)}
+            <UserAvatar user={user} size="sm" showProviderBadge={true} />
           </button>
           
           <ProfileDropdown 

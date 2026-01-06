@@ -17,6 +17,7 @@ import {
   Camera,
   Edit3
 } from 'lucide-react'
+import { UserAvatar } from '@/components/UserAvatar'
 
 export default function AccountPage() {
   const router = useRouter()
@@ -158,9 +159,7 @@ export default function AccountPage() {
             {/* Avatar */}
             <div className="flex items-center gap-6 mb-6">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-2xl font-bold">
-                  {user?.name?.charAt(0)?.toUpperCase() || user?.username?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
+                <UserAvatar user={user} size="lg" showProviderBadge={true} />
                 <button
                   type="button"
                   className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
@@ -176,6 +175,11 @@ export default function AccountPage() {
                     {user?.role || 'user'}
                   </span>
                 </p>
+                {user?.auth_provider && user.auth_provider !== 'email' && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Signed in with: <span className="font-medium capitalize">{user.auth_provider}</span>
+                  </p>
+                )}
               </div>
             </div>
 

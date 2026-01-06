@@ -5,6 +5,8 @@ export interface User {
   email: string
   name: string | null
   role: 'admin' | 'user'
+  avatar_url?: string | null
+  auth_provider?: 'google' | 'facebook' | 'email' | null
 }
 
 export interface AuthState {

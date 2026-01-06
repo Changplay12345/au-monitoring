@@ -41,19 +41,31 @@ export async function GET(request: Request) {
     const email = oauthUser.email
     const name = oauthUser.user_metadata?.full_name || oauthUser.user_metadata?.name || email?.split('@')[0]
     const provider = oauthUser.app_metadata?.provider || 'oauth'
+    const avatarUrl = oauthUser.user_metadata?.avatar_url || oauthUser.user_metadata?.picture || null
 
     // Check if user exists in our users table
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
-      .select('id, username, email, name, role')
+      .select('id, username, email, name, role, avatar_url, auth_provider')
       .eq('email', email)
       .single()
 
     let user
 
     if (existingUser) {
-      // User exists, use existing data
-      user = existingUser
+      // User exists, update avatar and provider if changed
+      const { data: updatedUser } = await supabase
+        .from('users')
+        .update({ 
+          avatar_url: avatarUrl || existingUser.avatar_url,
+          auth_provider: provider,
+          name: name || existingUser.name
+        })
+        .eq('id', existingUser.id)
+        .select('id, username, email, name, role, avatar_url, auth_provider')
+        .single()
+      
+      user = updatedUser || existingUser
     } else {
       // Create new user in our users table
       const username = email?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6)
@@ -65,9 +77,11 @@ export async function GET(request: Request) {
           email: email,
           name: name,
           password: `oauth_${provider}_${Date.now()}`, // Placeholder password for OAuth users
-          role: 'user'
+          role: 'user',
+          avatar_url: avatarUrl,
+          auth_provider: provider
         })
-        .select('id, username, email, name, role')
+        .select('id, username, email, name, role, avatar_url, auth_provider')
         .single()
 
       if (insertError) {
@@ -85,7 +99,9 @@ export async function GET(request: Request) {
       username: user.username,
       email: user.email,
       name: user.name,
-      role: user.role || 'user'
+      role: user.role || 'user',
+      avatar_url: user.avatar_url || null,
+      auth_provider: user.auth_provider || provider
     }
 
     cookieStore.set('au_auth_token', encodeURIComponent(JSON.stringify(userData)), {

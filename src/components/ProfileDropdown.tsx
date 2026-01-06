@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { User } from '@/lib/types'
+import { UserAvatar } from './UserAvatar'
 import { 
   LogOut, 
   Settings, 
@@ -111,10 +112,8 @@ export function ProfileDropdown({ user, onLogout, isOpen, onClose }: ProfileDrop
       {/* User Info */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-start gap-3">
-          {/* Avatar */}
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white flex items-center justify-center text-lg font-bold shadow-md">
-            {user ? getInitials(user.name, user.username) : 'U'}
-          </div>
+          {/* Avatar with provider badge */}
+          <UserAvatar user={user} size="lg" showProviderBadge={true} />
           
           {/* Info */}
           <div className="flex-1 min-w-0">
