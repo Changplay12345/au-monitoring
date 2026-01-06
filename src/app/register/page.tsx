@@ -47,11 +47,17 @@ export default function RegisterPage() {
       }
       
       if (data.url) {
-        // Open OAuth provider in popup window
+        // Calculate center position
+        const width = 500
+        const height = 600
+        const left = (window.screen.width - width) / 2
+        const top = (window.screen.height - height) / 2
+        
+        // Open OAuth provider in centered popup window
         const popup = window.open(
           data.url,
           'oauth-register',
-          'width=500,height=600,scrollbars=yes,resizable=yes'
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
         )
         
         if (!popup) {

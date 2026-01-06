@@ -72,8 +72,14 @@ export default function AuthCallbackPage() {
         const provider = oauthUser.app_metadata?.provider || 'oauth'
         const avatarUrl = oauthUser.user_metadata?.avatar_url || oauthUser.user_metadata?.picture || null
 
+        // Use service role key to bypass RLS for user creation/update
+        const serviceClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
         // Check if user exists in our users table
-        const { data: existingUser } = await supabase
+        const { data: existingUser } = await serviceClient
           .from('users')
           .select('id, username, email, name, role, avatar_url, auth_provider')
           .eq('email', email)
@@ -83,7 +89,7 @@ export default function AuthCallbackPage() {
 
         if (existingUser) {
           // User exists, update avatar and provider if changed
-          const { data: updatedUser } = await supabase
+          const { data: updatedUser } = await serviceClient
             .from('users')
             .update({ 
               avatar_url: avatarUrl || existingUser.avatar_url,
@@ -99,7 +105,7 @@ export default function AuthCallbackPage() {
           // Create new user in our users table
           const username = email?.split('@')[0] + '_' + Math.random().toString(36).substring(2, 6)
           
-          const { data: newUser, error: insertError } = await supabase
+          const { data: newUser, error: insertError } = await serviceClient
             .from('users')
             .insert({
               username: username,
