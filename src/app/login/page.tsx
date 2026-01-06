@@ -10,12 +10,12 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, isLoading } = useAuth()
+  const isLogoutPage = searchParams.get('logout') === 'true'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [isTransitioning, setIsTransitioning] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [showLogoutMessage, setShowLogoutMessage] = useState(false)
 
@@ -44,9 +44,6 @@ function LoginContent() {
     const result = await login(username, password, redirectTo)
     if (!result.success) {
       setError(result.error || 'Login failed')
-    } else {
-      setIsSuccess(true)
-      setIsTransitioning(true)
     }
   }
 
@@ -55,7 +52,7 @@ function LoginContent() {
       {/* Signing in animation overlay */}
       <div 
         className={`fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 ${
-          isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          isLoading && !isLogoutPage ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className={`text-center transform transition-all duration-500 ${
@@ -82,38 +79,9 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* Success transition overlay */}
-      <div 
-        className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-700 ${
-          isTransitioning ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        style={{
-          background: isTransitioning ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%)' : 'transparent'
-        }}
-      >
-        <div className={`text-center transform transition-all duration-700 ${
-          isTransitioning ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
-        }`}>
-          {/* Success checkmark with animation */}
-          <div className="relative w-28 h-28 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
-            <div className="w-28 h-28 rounded-full bg-white flex items-center justify-center shadow-2xl">
-              <CheckCircle className="w-16 h-16 text-green-500 animate-[scale-in_0.5s_ease-out]" />
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-3">Welcome back!</h2>
-          <p className="text-white/80 text-lg mb-6">Preparing your dashboard...</p>
-          {/* Progress bar */}
-          <div className="w-48 h-1.5 bg-white/30 rounded-full mx-auto overflow-hidden">
-            <div className="h-full bg-white rounded-full animate-[progress_1.5s_ease-in-out]" />
-          </div>
-        </div>
-      </div>
-
+      
       {/* Modern background with subtle red accent */}
-      <div className={`min-h-screen bg-gray-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-8 transition-all duration-500 ${
-        isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-      }`}> <DustBackground/>
+      <div className="min-h-screen bg-gray-100 relative overflow-hidden flex items-center justify-center p-4 sm:p-8"> <DustBackground/>
         
         {/* Centered container with max-width for zoomed-out effect */}
         <div 
