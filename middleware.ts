@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/register', '/api', '/login-success', '/demo-login-success']
+const publicRoutes = ['/login', '/register', '/api', '/login-success', '/demo-login-success', '/demo-login-flow']
 
 // Routes that should redirect to login if not authenticated
 const protectedRoutes = [
