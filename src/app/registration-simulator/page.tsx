@@ -20,7 +20,8 @@ import {
   Plus,
   Minus,
   Search,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 
 // Test table name
@@ -273,25 +274,33 @@ export default function RegistrationSimulatorPage() {
   useEffect(() => {
     fetchCourses();
 
+    console.log('[Realtime] Setting up subscription to table:', TEST_TABLE);
+    
     const channel = supabase
       .channel('simulator-realtime')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
         (payload) => {
+          console.log('[Realtime] Received update:', payload);
           const newData = payload.new as CourseData;
-          setCourses(prev => 
-            prev.map(c => 
+          setCourses(prev => {
+            const updated = prev.map(c => 
               c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
                 ? newData
                 : c
-            )
-          );
+            );
+            console.log('[Realtime] Updated courses count:', updated.length);
+            return updated;
+          });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status);
+      });
 
     return () => {
+      console.log('[Realtime] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [fetchCourses]);
@@ -1015,6 +1024,41 @@ export default function RegistrationSimulatorPage() {
                       style={{ width: `${fillRate}%` }}
                     />
                   </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      addLog('🔄 Refreshing data...');
+                      fetchCourses();
+                    }}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh Data
+                  </button>
+                  <button
+                    onClick={async () => {
+                      addLog('🔍 Checking realtime status...');
+                      try {
+                        const response = await fetch('/api/simulator/realtime-check');
+                        const result = await response.json();
+                        if (result.tableExists) {
+                          addLog(`✅ Table exists. Check browser console for realtime logs`);
+                        } else {
+                          addLog(`❌ Table issue: ${result.error}`);
+                        }
+                      } catch (error: any) {
+                        addLog(`❌ Check failed: ${error.message}`);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
+                  >
+                    <Database className="w-3 h-3" />
+                    Check Realtime
+                  </button>
                 </div>
               </div>
 
