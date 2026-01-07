@@ -33,9 +33,7 @@ export default function RegisterPage() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
       
-      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-        : `${window.location.origin}/auth/callback`
+      const redirectUrl = `${window.location.origin}/auth/callback`
       
       const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: provider,
@@ -177,7 +175,9 @@ export default function RegisterPage() {
           username: formData.username,
           email: formData.email,
           password: hashedPassword,
-          name: formData.name
+          name: formData.name,
+          auth_provider: 'email',
+          has_password: true
         })
 
       if (insertError) {

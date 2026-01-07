@@ -55,9 +55,7 @@ function LoginContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
       
-      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-        : `${window.location.origin}/auth/callback`
+      const redirectUrl = `${window.location.origin}/auth/callback`
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
@@ -95,8 +93,13 @@ function LoginContent() {
         const checkClosed = setInterval(() => {
           if (popup.closed) {
             clearInterval(checkClosed)
-            // Redirect to home after popup closes
-            window.location.href = '/home'
+            // Check if user is in localStorage (fallback)
+            const userData = localStorage.getItem('au_monitoring_user')
+            if (userData) {
+              window.location.href = '/home'
+            } else {
+              console.error('No user data found after OAuth')
+            }
           }
         }, 1000)
         

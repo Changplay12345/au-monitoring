@@ -7,6 +7,7 @@ export interface User {
   role: 'admin' | 'user'
   avatar_url?: string | null
   auth_provider?: 'google' | 'facebook' | 'email' | null
+  has_password?: boolean // true if user has set a password (for merged accounts)
 }
 
 export interface AuthState {

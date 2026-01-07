@@ -14,7 +14,6 @@ import {
   EyeOff, 
   CheckCircle, 
   AlertCircle,
-  Camera,
   Edit3
 } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -123,6 +122,60 @@ export default function AccountPage() {
     }
   }
 
+  // Handle setting password for Google OAuth users who don't have a password yet
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError(null)
+    setPasswordSuccess(false)
+
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match')
+      return
+    }
+
+    setPasswordLoading(true)
+
+    try {
+      const response = await fetch('/api/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, password: newPassword })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to set password')
+      }
+
+      // Update local user state to reflect has_password = true
+      const storedUser = localStorage.getItem('au_monitoring_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        userData.has_password = true
+        localStorage.setItem('au_monitoring_user', JSON.stringify(userData))
+      }
+
+      setPasswordSuccess(true)
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => {
+        setPasswordSuccess(false)
+        // Reload to update UI
+        window.location.reload()
+      }, 2000)
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
   if (authLoading) {
     return (
       <GCPLayout activeFeature="Account" projectName="Account Settings">
@@ -160,12 +213,6 @@ export default function AccountPage() {
             <div className="flex items-center gap-6 mb-6">
               <div className="relative">
                 <UserAvatar user={user} size="lg" showProviderBadge={true} />
-                <button
-                  type="button"
-                  className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
-                >
-                  <Camera className="w-4 h-4 text-gray-600" />
-                </button>
               </div>
               <div>
                 <p className="font-medium text-gray-900">{user?.name || 'No name set'}</p>
@@ -224,9 +271,13 @@ export default function AccountPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
+                    disabled={user?.auth_provider === 'google' || user?.auth_provider === 'facebook'}
+                    className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors ${user?.auth_provider === 'google' || user?.auth_provider === 'facebook' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   />
                 </div>
+                {(user?.auth_provider === 'google' || user?.auth_provider === 'facebook') && (
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed for OAuth accounts</p>
+                )}
               </div>
             </div>
 
@@ -247,7 +298,9 @@ export default function AccountPage() {
           </form>
         </div>
 
-        {/* Security Section */}
+        {/* Security Section - Show for email users OR Google users who can set password */}
+        {/* Hide completely for Facebook users (no email available) */}
+        {user?.auth_provider !== 'facebook' && (
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -255,8 +308,15 @@ export default function AccountPage() {
               Security
             </h2>
           </div>
-          <form onSubmit={handlePasswordSubmit} className="p-6">
-            <h3 className="text-md font-medium text-gray-800 mb-4">Change Password</h3>
+          <form onSubmit={user?.has_password ? handlePasswordSubmit : handleSetPassword} className="p-6">
+            <h3 className="text-md font-medium text-gray-800 mb-4">
+              {user?.has_password ? 'Change Password' : 'Set Password'}
+            </h3>
+            {!user?.has_password && user?.auth_provider === 'google' && (
+              <p className="text-sm text-gray-500 mb-4">
+                Set a password to also login with your email and password in addition to Google.
+              </p>
+            )}
 
             {passwordError && (
               <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -268,11 +328,13 @@ export default function AccountPage() {
             {passwordSuccess && (
               <div className="mb-4 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                Password changed successfully!
+                {user?.has_password ? 'Password changed successfully!' : 'Password set successfully!'}
               </div>
             )}
 
             <div className="space-y-4">
+              {/* Only show current password field if user already has a password */}
+              {user?.has_password && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Current Password
@@ -295,11 +357,12 @@ export default function AccountPage() {
                   </button>
                 </div>
               </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    New Password
+                    {user?.has_password ? 'New Password' : 'Password'}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -321,7 +384,7 @@ export default function AccountPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Confirm New Password
+                    {user?.has_password ? 'Confirm New Password' : 'Confirm Password'}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -347,7 +410,7 @@ export default function AccountPage() {
             <div className="mt-4 flex justify-end">
               <button
                 type="submit"
-                disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                disabled={passwordLoading || (user?.has_password && !currentPassword) || !newPassword || !confirmPassword}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {passwordLoading ? (
@@ -355,11 +418,12 @@ export default function AccountPage() {
                 ) : (
                   <Lock className="w-4 h-4" />
                 )}
-                Change Password
+                {user?.has_password ? 'Change Password' : 'Set Password'}
               </button>
             </div>
           </form>
         </div>
+        )}
 
         {/* Account Info */}
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
