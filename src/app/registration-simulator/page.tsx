@@ -193,32 +193,35 @@ export default function RegistrationSimulatorPage() {
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 99)]);
   }, []);
 
-  // Fetch courses from test table
+  // Fetch courses from test table via API (bypasses schema cache)
   const fetchCourses = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('Fetching from table:', TEST_TABLE);
-      const { data, error } = await supabase
-        .from(TEST_TABLE)
-        .select('*');
+      
+      // Use API route with service role key to bypass schema cache issues
+      const response = await fetch(`/api/simulator/courses?table=${TEST_TABLE}`);
+      const result = await response.json();
 
-      console.log('Fetch result:', { data, error });
+      console.log('Fetch result:', result);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        addLog(`❌ Error: ${error.message}`);
-        throw error;
+      if (!response.ok || result.error) {
+        console.error('API error:', result.error);
+        addLog(`❌ Error: ${result.error}`);
+        setCourses([]);
+        setIsUsingTestData(false);
+        return;
       }
       
-      setCourses(data || []);
-      console.log('Courses loaded:', data?.length || 0);
+      setCourses(result.data || []);
+      console.log('Courses loaded:', result.data?.length || 0);
       
       // Store original data for reset
-      if (originalData.length === 0 && data) {
-        setOriginalData(JSON.parse(JSON.stringify(data)));
+      if (originalData.length === 0 && result.data) {
+        setOriginalData(JSON.parse(JSON.stringify(result.data)));
       }
       setIsUsingTestData(true);
-      addLog(`✅ Loaded ${data?.length || 0} courses from test table`);
+      addLog(`✅ Loaded ${result.data?.length || 0} courses from test table`);
     } catch (error: any) {
       console.error('Error fetching courses:', error);
       addLog(`❌ Error fetching courses: ${error?.message || 'Unknown error'}`);
@@ -250,10 +253,14 @@ export default function RegistrationSimulatorPage() {
     }
   }, [addLog, fetchCourses]);
 
-  // Subscribe to real-time updates
+  // Initial fetch on mount
   useEffect(() => {
     fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Subscribe to real-time updates (separate effect with empty deps)
+  useEffect(() => {
     const channel = supabase
       .channel('simulator-realtime')
       .on(
@@ -275,7 +282,7 @@ export default function RegistrationSimulatorPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchCourses]);
+  }, []);
 
   // Timer for elapsed time
   useEffect(() => {
