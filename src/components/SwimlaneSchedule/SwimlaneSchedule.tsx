@@ -95,7 +95,13 @@ export function SwimlaneSchedule({ day, courses: propCourses = [] }: SwimlaneSch
   }, [selectedSections, closePopover])
 
   if (courses.length === 0) {
-    return null
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+        <div className="text-4xl mb-2">📚</div>
+        <p className="text-lg font-medium">No courses found for {day}</p>
+        <p className="text-sm mt-1">Try refreshing or checking other days</p>
+      </div>
+    )
   }
 
   return (

@@ -73,10 +73,10 @@ export function useCourses() {
     }
   }, [databaseMode])
 
-  // Initial fetch - removed to prevent auto-loading
-  // useEffect(() => {
-  //   fetchCourses()
-  // }, [fetchCourses])
+  // Initial fetch
+  useEffect(() => {
+    fetchCourses()
+  }, [fetchCourses])
 
   // Re-fetch when databaseMode changes
   useEffect(() => {
