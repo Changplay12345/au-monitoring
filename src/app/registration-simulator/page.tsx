@@ -193,43 +193,32 @@ export default function RegistrationSimulatorPage() {
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 99)]);
   }, []);
 
-  // Fetch courses from test table via API (bypasses schema cache)
+  // Fetch courses from test table
   const fetchCourses = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('Fetching from table:', TEST_TABLE);
-      
-      // Use API route with service role key to bypass schema cache issues
-      const response = await fetch(`/api/simulator/courses?table=${TEST_TABLE}`);
-      const result = await response.json();
+      const { data, error } = await supabase
+        .from(TEST_TABLE)
+        .select('*');
 
-      console.log('Fetch result:', result);
+      console.log('Fetch result:', { data, error });
 
-      if (!response.ok || result.error) {
-        console.error('API error:', result.error);
-        
-        // Check if table doesn't exist
-        if (result.needsTableCreation) {
-          addLog(`❌ Table '${TEST_TABLE}' doesn't exist`);
-          addLog(`📝 Click "Initialize Test Table" to create it`);
-          setCourses([]);
-          setIsUsingTestData(false);
-          return;
-        }
-        
-        addLog(`❌ Error: ${result.error}`);
-        return;
+      if (error) {
+        console.error('Supabase error:', error);
+        addLog(`❌ Error: ${error.message}`);
+        throw error;
       }
       
-      setCourses(result.data || []);
-      console.log('Courses loaded:', result.data?.length || 0);
+      setCourses(data || []);
+      console.log('Courses loaded:', data?.length || 0);
       
       // Store original data for reset
-      if (originalData.length === 0 && result.data) {
-        setOriginalData(JSON.parse(JSON.stringify(result.data)));
+      if (originalData.length === 0 && data) {
+        setOriginalData(JSON.parse(JSON.stringify(data)));
       }
       setIsUsingTestData(true);
-      addLog(`✅ Loaded ${result.data?.length || 0} courses from test table`);
+      addLog(`✅ Loaded ${data?.length || 0} courses from test table`);
     } catch (error: any) {
       console.error('Error fetching courses:', error);
       addLog(`❌ Error fetching courses: ${error?.message || 'Unknown error'}`);
@@ -248,14 +237,6 @@ export default function RegistrationSimulatorPage() {
       const result = await response.json();
       
       if (!response.ok) {
-        // Check if it's the table doesn't exist error
-        if (result.details?.needsManualCreation) {
-          addLog(`❌ Table '${TEST_TABLE}' doesn't exist in database`);
-          addLog(`📝 To fix: Create table '${TEST_TABLE}' in Supabase dashboard with same structure as 'data_vme'`);
-          addLog(`🔗 Go to: Supabase Dashboard → Table Editor → Create Table`);
-          addLog(`📋 Copy columns from 'data_vme' table`);
-          return;
-        }
         throw new Error(result.error || 'Failed to initialize');
       }
       
@@ -269,22 +250,16 @@ export default function RegistrationSimulatorPage() {
     }
   }, [addLog, fetchCourses]);
 
-  // Initial fetch
+  // Subscribe to real-time updates
   useEffect(() => {
     fetchCourses();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Subscribe to real-time updates (separate from fetch to avoid re-subscription)
-  useEffect(() => {
-    console.log('[Realtime] Setting up subscription to table:', TEST_TABLE);
-    
     const channel = supabase
       .channel('simulator-realtime')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
         (payload) => {
-          console.log('[Realtime] Received update:', payload);
           const newData = payload.new as CourseData;
           setCourses(prev => 
             prev.map(c => 
@@ -295,14 +270,12 @@ export default function RegistrationSimulatorPage() {
           );
         }
       )
-      .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); // Empty deps - only run once on mount
+  }, [fetchCourses]);
 
   // Timer for elapsed time
   useEffect(() => {
