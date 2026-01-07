@@ -174,9 +174,9 @@ function LoginContent() {
       {/* Modern background with subtle red accent */}
       <div className="min-h-screen relative flex items-center justify-center p-4 sm:p-8">
         
-        {/* Centered container with max-width for zoomed-out effect */}
+        {/* Centered container with appropriate max-width for 100% zoom */}
         <div 
-          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out relative z-10 ${
+          className={`w-full max-w-5xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out relative z-10 ${
             mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
           }`}
         >

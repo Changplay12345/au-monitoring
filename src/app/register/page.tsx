@@ -255,9 +255,9 @@ export default function RegisterPage() {
             <div className="absolute top-0 right-40 w-px h-full bg-gradient-to-b from-transparent via-red-400 to-transparent rotate-12 origin-top" />
           </div>
         </div>
-        {/* Centered container with max-width for zoomed-out effect */}
+        {/* Centered container with appropriate max-width for 100% zoom */}
         <div 
-          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out ${
+          className={`w-full max-w-5xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out ${
             mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
           }`}
         >
