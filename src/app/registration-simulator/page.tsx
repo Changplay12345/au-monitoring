@@ -484,16 +484,22 @@ export default function RegistrationSimulatorPage() {
     const newLeft = course["Seat Limit"] - newUsed;
     
     try {
-      const { error } = await supabase
-        .from(TEST_TABLE)
-        .update({
-          "Seat Used": newUsed,
-          "Seat Left": newLeft
+      // Use API route with service role key to ensure realtime triggers
+      const response = await fetch('/api/simulator/update-seat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseCode: course["Course Code"],
+          section: course["Section"],
+          seatUsed: newUsed,
+          seatLeft: newLeft
         })
-        .eq('Course Code', course["Course Code"])
-        .eq('Section', course["Section"]);
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Update failed');
+      }
 
       const action = amount > 0 ? 'Added' : 'Removed';
       addLog(`✅ ${action} ${Math.abs(amount)} seat(s) ${amount > 0 ? 'to' : 'from'} ${course["Course Code"]}-${course["Section"]} (Left: ${newLeft})`);
