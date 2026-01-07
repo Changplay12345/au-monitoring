@@ -177,7 +177,7 @@ export function CourseGrid() {
       // ALL -> Day: Both animate simultaneously
       // ALL slides out RIGHT (200%), Day slides in from LEFT (-100% -> 0%)
       setShowDayTimetable(true)
-      setDaySlidePos(-120) // Start day off-screen LEFT
+      setDaySlidePos(-170) // Start day off-screen LEFT
       setActiveDay(newDay as any)
       
       // Animate both at the same time
@@ -367,7 +367,7 @@ export function CourseGrid() {
   })
 
   return (
-    <div className="max-w-[1000px] mx-auto px-4 py-6 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg">
+    <div className="max-w-[1000px] mx-auto px-4 py-6">
       {/* Header with filters */}
       <header className="flex justify-between items-center gap-3 mb-4 flex-wrap">
         {/* Day tabs */}
@@ -614,7 +614,7 @@ export function CourseGrid() {
           </div>
 
           {/* Time table box */}
-          <div className="bg-white/95 border border-gray-200 rounded-2xl overflow-hidden shadow-md backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
             {/* Grid - Time table structure without courses */}
             <div>
               {DAYS.map((day, idx) => (
@@ -626,7 +626,7 @@ export function CourseGrid() {
                   )}
                 >
                   {/* Day label */}
-                  <div className="absolute left-0 top-0 bottom-0 w-[70px] flex items-center justify-center font-semibold text-gray-500 bg-white/95 border-r border-gray-200 backdrop-blur-sm">
+                  <div className="absolute left-0 top-0 bottom-0 w-[70px] flex items-center justify-center font-semibold text-gray-500 bg-white border-r border-gray-200">
                     {day.slice(0, 3).toUpperCase()}
                   </div>
 
