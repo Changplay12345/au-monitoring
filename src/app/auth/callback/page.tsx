@@ -72,83 +72,21 @@ export default function AuthCallbackPage() {
         const provider = oauthUser.app_metadata?.provider || 'oauth'
         const avatarUrl = oauthUser.user_metadata?.avatar_url || oauthUser.user_metadata?.picture || null
 
-        // Use anon key for client-side operations (RLS policies handle permissions)
-        const serviceClient = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
+        // Call server API to handle user creation/update (bypasses RLS with service role key)
+        const response = await fetch('/api/oauth-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name, provider, avatarUrl })
+        })
 
-        // Check if user exists in our users table
-        const { data: existingUser } = await serviceClient
-          .from('users')
-          .select('id, username, email, name, role, avatar_url, auth_provider, has_password, password')
-          .eq('email', email)
-          .single()
+        const result = await response.json()
 
-        let user
-        let hasPassword = false
-
-        if (existingUser) {
-          // User exists - merge account
-          // Keep existing password if they registered with email first
-          // Check if user has a real password (not oauth placeholder)
-          const existingPassword = existingUser.password || ''
-          hasPassword = existingUser.has_password || (existingPassword.startsWith('$2') && !existingPassword.startsWith('oauth_'))
-          
-          // Update with OAuth info but preserve existing data
-          const { data: updatedUser } = await serviceClient
-            .from('users')
-            .update({ 
-              avatar_url: avatarUrl || existingUser.avatar_url,
-              auth_provider: provider, // Update to latest provider used
-              name: name || existingUser.name
-              // Keep existing password and has_password - don't overwrite
-            })
-            .eq('id', existingUser.id)
-            .select('id, username, email, name, role, avatar_url, auth_provider, has_password')
-            .single()
-          
-          user = updatedUser || existingUser
-          // Preserve has_password from existing user
-          if (user) user.has_password = hasPassword
-        } else {
-          // Create new user in our users table
-          // Use email as username for OAuth users
-          const { data: newUser, error: insertError } = await serviceClient
-            .from('users')
-            .insert({
-              username: email,
-              email: email,
-              name: name,
-              password: `oauth_${provider}_${Date.now()}`, // Placeholder password
-              role: 'user',
-              avatar_url: avatarUrl,
-              auth_provider: provider,
-              has_password: false // New OAuth user has no password yet
-            })
-            .select('id, username, email, name, role, avatar_url, auth_provider, has_password')
-            .single()
-
-          if (insertError) {
-            setError('Failed to create account: ' + insertError.message)
-            return
-          }
-
-          user = newUser
-          hasPassword = false
+        if (!response.ok || !result.success) {
+          setError(result.error || 'Failed to create account')
+          return
         }
 
-        // Set auth cookie and localStorage
-        const userData = {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          name: user.name,
-          role: user.role || 'user',
-          avatar_url: user.avatar_url || null,
-          auth_provider: user.auth_provider || provider,
-          has_password: hasPassword
-        }
+        const userData = result.user
 
         // Store in localStorage (for useAuth hook)
         localStorage.setItem('au_monitoring_user', JSON.stringify(userData))
