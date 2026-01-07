@@ -257,9 +257,10 @@ export default function RegisterPage() {
         </div>
         {/* Centered container with appropriate max-width for 100% zoom */}
         <div 
-          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out scale-95 ${
+          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out ${
             mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}
+          style={{ zoom: 0.9 }}
         >
           {/* Left side - Brand/Imagery */}
           <aside className="hidden lg:flex lg:w-1/2 relative overflow-hidden rounded-l-2xl">
