@@ -261,12 +261,15 @@ export default function RegistrationSimulatorPage() {
 
   // Subscribe to real-time updates (separate effect with empty deps)
   useEffect(() => {
+    console.log('[Simulator] Setting up realtime subscription for:', TEST_TABLE);
+    
     const channel = supabase
       .channel('simulator-realtime')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
         (payload) => {
+          console.log('[Simulator] Realtime UPDATE received:', payload);
           const newData = payload.new as CourseData;
           setCourses(prev => 
             prev.map(c => 
@@ -277,9 +280,12 @@ export default function RegistrationSimulatorPage() {
           );
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[Simulator] Subscription status:', status, err || '');
+      });
 
     return () => {
+      console.log('[Simulator] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, []);
