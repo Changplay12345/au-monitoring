@@ -84,41 +84,6 @@ export function CourseGrid() {
     isSimulatorRunning,
   } = useCourses()
 
-  // Check if any courses exist
-  const hasAnyCourses = Object.values(groupedByDay).some(groups => groups.length > 0)
-  
-  // Show message when no courses are available
-  if (!isLoading && !hasAnyCourses) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 text-gray-500">
-        <div className="text-6xl mb-4">📚</div>
-        <h3 className="text-xl font-semibold mb-2">No Course Data Available</h3>
-        <p className="text-sm mb-4">The course database appears to be empty</p>
-        <div className="flex gap-2">
-          <button
-            onClick={refresh}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-          >
-            Refresh Data
-          </button>
-          <button
-            onClick={() => fetch('/api/import-csv', { method: 'POST' }).then(r => r.json()).then(d => {
-              if (d.success) {
-                refresh()
-                alert('Course data imported successfully!')
-              } else {
-                alert('Import failed: ' + d.error)
-              }
-            })}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-          >
-            Import Sample Data
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // Timetable_Move function state - slide positions
   const [allSlidePos, setAllSlidePos] = useState(0) // ALL timetable position: 0 = center, 200 = off right
   const [daySlidePos, setDaySlidePos] = useState(-100) // Day timetable position: -100 = off left, 0 = center
