@@ -193,22 +193,23 @@ export default function RegistrationSimulatorPage() {
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 99)]);
   }, []);
 
-  // Fetch courses from test table
+  // Fetch courses from test table via API (bypasses schema cache)
   const fetchCourses = useCallback(async () => {
     setIsLoading(true);
     try {
       console.log('Fetching from table:', TEST_TABLE);
-      const { data, error } = await supabase
-        .from(TEST_TABLE)
-        .select('*');
+      
+      // Use API route with service role key to bypass schema cache issues
+      const response = await fetch(`/api/simulator/courses?table=${TEST_TABLE}`);
+      const result = await response.json();
 
-      console.log('Fetch result:', { data, error });
+      console.log('Fetch result:', result);
 
-      if (error) {
-        console.error('Supabase error:', error);
+      if (!response.ok || result.error) {
+        console.error('API error:', result.error);
         
         // Check if table doesn't exist
-        if (error.message.includes('does not exist') || error.message.includes('relation')) {
+        if (result.needsTableCreation) {
           addLog(`❌ Table '${TEST_TABLE}' doesn't exist`);
           addLog(`📝 Click "Initialize Test Table" to create it`);
           setCourses([]);
@@ -216,19 +217,19 @@ export default function RegistrationSimulatorPage() {
           return;
         }
         
-        addLog(`❌ Error: ${error.message}`);
-        throw error;
+        addLog(`❌ Error: ${result.error}`);
+        return;
       }
       
-      setCourses(data || []);
-      console.log('Courses loaded:', data?.length || 0);
+      setCourses(result.data || []);
+      console.log('Courses loaded:', result.data?.length || 0);
       
       // Store original data for reset
-      if (originalData.length === 0 && data) {
-        setOriginalData(JSON.parse(JSON.stringify(data)));
+      if (originalData.length === 0 && result.data) {
+        setOriginalData(JSON.parse(JSON.stringify(result.data)));
       }
       setIsUsingTestData(true);
-      addLog(`✅ Loaded ${data?.length || 0} courses from test table`);
+      addLog(`✅ Loaded ${result.data?.length || 0} courses from test table`);
     } catch (error: any) {
       console.error('Error fetching courses:', error);
       addLog(`❌ Error fetching courses: ${error?.message || 'Unknown error'}`);
