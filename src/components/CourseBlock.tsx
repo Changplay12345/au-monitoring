@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { AnimatedNumber } from './AnimatedNumber'
 
 // Course data from CSV
 export interface CSVCourse {
@@ -112,7 +113,7 @@ export function CourseBlock({
           getSeatColor(course.seatLeft, course.seatLimit)
         )}
       >
-        {course.seatLeft}
+        <AnimatedNumber value={course.seatLeft} />
       </span>
 
       {/* Stack indicator */}

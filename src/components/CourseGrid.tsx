@@ -8,6 +8,7 @@ import { RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
 import { CourseBlock, CSVCourse } from './CourseBlock'
 import { CourseGroup as SupabaseCourseGroup } from '@/lib/types'
 import { SwimlaneSchedule } from './SwimlaneSchedule'
+import { AnimatedNumber } from './AnimatedNumber'
 
 // Time axis configuration
 const START_MIN = 7 * 60 + 30  // 07:30
@@ -440,7 +441,7 @@ export function CourseGrid() {
                       "px-2 py-0.5 rounded text-xs font-bold text-white",
                       getSeatColor(course.seatLeft, course.seatLimit)
                     )}>
-                      {course.seatLeft}/{course.seatLimit}
+                      <AnimatedNumber value={course.seatLeft} />/{course.seatLimit}
                     </span>
                   </button>
                 ))}
@@ -579,7 +580,7 @@ export function CourseGrid() {
                               course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
                               "bg-emerald-500"
                             )}>
-                              {course.seatLeft}/{course.seatLimit}
+                              <AnimatedNumber value={course.seatLeft} />/{course.seatLimit}
                             </span>
                           </div>
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{course.courseTitle}</p>

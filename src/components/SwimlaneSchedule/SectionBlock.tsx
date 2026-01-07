@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { CSVCourse } from '@/components/CourseBlock'
+import { AnimatedNumber } from '@/components/AnimatedNumber'
 
 interface SectionBlockProps {
   section: CSVCourse
@@ -86,7 +87,7 @@ export function SectionBlock({
           getSeatColor(section.seatLeft, section.seatLimit)
         )}
       >
-        {section.seatLeft}
+        <AnimatedNumber value={section.seatLeft} />
       </span>
     </div>
   )

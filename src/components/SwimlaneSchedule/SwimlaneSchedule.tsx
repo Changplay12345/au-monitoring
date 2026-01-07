@@ -7,6 +7,7 @@ import { timeToMinutes } from '@/lib/courseData'
 import { CourseLane } from './CourseLane'
 import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
+import { AnimatedNumber } from '@/components/AnimatedNumber'
 
 // Time axis configuration
 const START_MIN = 7 * 60 + 30  // 07:30
@@ -245,7 +246,7 @@ export function SwimlaneSchedule({ day, courses: propCourses = [] }: SwimlaneSch
                         ratio >= 0.25 ? 'bg-amber-500' :
                         ratio > 0 ? 'bg-orange-500' : 'bg-red-500'
                       )}>
-                        {section.seatLeft}/{section.seatLimit}
+                        <AnimatedNumber value={section.seatLeft} />/{section.seatLimit}
                       </span>
                     </div>
                   </div>

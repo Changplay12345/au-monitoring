@@ -3,6 +3,7 @@
 import { NormalizedCourse } from '@/lib/types'
 import { formatTimeRange, normalizeExamDate, computeSeatLeft } from '@/lib/utils'
 import { X } from 'lucide-react'
+import { AnimatedNumber } from './AnimatedNumber'
 
 interface CourseDetailProps {
   course: NormalizedCourse
@@ -36,7 +37,7 @@ export function CourseDetail({ course, onClose }: CourseDetailProps) {
         <p>
           <span className="font-medium text-gray-700">Seat:</span> {seatText}
           {seatLeft !== null && course.seatLimit !== null && (
-            <span className="text-gray-500"> ({seatLeft} left)</span>
+            <span className="text-gray-500"> (<AnimatedNumber value={seatLeft} /> left)</span>
           )}
         </p>
         <p>
