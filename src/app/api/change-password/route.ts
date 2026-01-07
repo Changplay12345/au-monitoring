@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { supabase } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase'
 import bcrypt from 'bcryptjs'
 
 export async function POST(request: Request) {
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user password from database
+    const supabase = createServerClient()
     const { data: user, error: fetchError } = await supabase
       .from('users')
       .select('password')

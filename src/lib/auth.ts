@@ -1,6 +1,15 @@
-import { supabase } from './supabase'
+import { supabase, createServerClient } from './supabase'
 import { User } from './types'
 import bcrypt from 'bcryptjs'
+
+// Use server client for operations that need to bypass RLS
+const getDbClient = () => {
+  // In server context, use service role key to bypass RLS
+  if (typeof window === 'undefined') {
+    return createServerClient()
+  }
+  return supabase
+}
 
 const USERS_TABLE = 'users'
 const USERS_ID_COL = 'id'
@@ -15,9 +24,10 @@ export type UserRole = 'admin' | 'user'
 
 // Find user by username
 export async function findUserByUsername(username: string): Promise<Record<string, unknown> | null> {
-  const { data, error } = await supabase
+  const db = getDbClient()
+  const { data, error } = await db
     .from(USERS_TABLE)
-    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}`)
+    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}, avatar_url, auth_provider, has_password`)
     .eq(USERS_USERNAME_COL, username)
     .limit(1)
     .single()
@@ -28,9 +38,10 @@ export async function findUserByUsername(username: string): Promise<Record<strin
 
 // Find user by email
 export async function findUserByEmail(email: string): Promise<Record<string, unknown> | null> {
-  const { data, error } = await supabase
+  const db = getDbClient()
+  const { data, error } = await db
     .from(USERS_TABLE)
-    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}`)
+    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}, ${USERS_ROLE_COL}, avatar_url, auth_provider, has_password`)
     .eq(USERS_EMAIL_COL, email)
     .limit(1)
     .single()
@@ -81,6 +92,9 @@ export async function loginUser(identifier: string, password: string): Promise<U
     email: String(row[USERS_EMAIL_COL]),
     name: row[USERS_NAME_COL] ? String(row[USERS_NAME_COL]) : null,
     role: (row[USERS_ROLE_COL] as 'admin' | 'user') || 'user',
+    avatar_url: row.avatar_url ? String(row.avatar_url) : null,
+    auth_provider: row.auth_provider as 'google' | 'facebook' | 'email' | null,
+    has_password: row.has_password === true || row.has_password === 'true'
   }
 }
 
