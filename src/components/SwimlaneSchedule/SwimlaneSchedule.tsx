@@ -120,7 +120,7 @@ export function SwimlaneSchedule({ day, courses: propCourses = [] }: SwimlaneSch
       </div>
 
       {/* Main container with shadow */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-md overflow-hidden relative">
+      <div className="bg-white/95 border border-gray-200 rounded-xl shadow-md overflow-hidden relative backdrop-blur-sm">
         {/* Spike lines extending above the table border */}
         <div className="absolute -top-3 left-[140px] right-[20px] h-3 pointer-events-none z-10">
           {TIME_TICKS.map((tick, i) => (
