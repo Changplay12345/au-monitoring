@@ -20,8 +20,7 @@ import {
   Plus,
   Minus,
   Search,
-  ChevronDown,
-  RefreshCw
+  ChevronDown
 } from 'lucide-react';
 
 // Test table name
@@ -276,34 +275,61 @@ export default function RegistrationSimulatorPage() {
 
     console.log('[Realtime] Setting up subscription to table:', TEST_TABLE);
     
+    // Use unique channel name like useCourses does
+    const channelName = `simulator-realtime-${TEST_TABLE}-${Date.now()}`;
+    
     const channel = supabase
-      .channel('simulator-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
+        { 
+          event: '*',  // Listen to all events like useCourses
+          schema: 'public', 
+          table: TEST_TABLE 
+        },
         (payload) => {
-          console.log('[Realtime] Received update:', payload);
-          const newData = payload.new as CourseData;
-          setCourses(prev => {
-            const updated = prev.map(c => 
-              c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
-                ? newData
-                : c
-            );
-            console.log('[Realtime] Updated courses count:', updated.length);
-            return updated;
-          });
+          console.log('[Realtime] Received event:', payload.eventType, payload);
+          
+          if (payload.eventType === 'UPDATE') {
+            const newData = payload.new as CourseData;
+            console.log('[Realtime] UPDATE - Course:', newData["Course Code"], 
+              'Section:', newData["Section"],
+              'Seat Left:', newData["Seat Left"]);
+            
+            setCourses(prev => {
+              const updated = prev.map(c => 
+                c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
+                  ? newData
+                  : c
+              );
+              console.log('[Realtime] Updated courses, new count:', updated.length);
+              return updated;
+            });
+          } else if (payload.eventType === 'INSERT') {
+            const newData = payload.new as CourseData;
+            console.log('[Realtime] INSERT - New course added');
+            setCourses(prev => [...prev, newData]);
+          } else if (payload.eventType === 'DELETE') {
+            const oldData = payload.old as CourseData;
+            console.log('[Realtime] DELETE - Course removed');
+            setCourses(prev => prev.filter(c => 
+              !(c["Course Code"] === oldData["Course Code"] && c["Section"] === oldData["Section"])
+            ));
+          }
         }
       )
       .subscribe((status) => {
         console.log('[Realtime] Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          addLog('🔴 Realtime connected');
+        }
       });
 
     return () => {
       console.log('[Realtime] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [fetchCourses]);
+  }, [fetchCourses, addLog]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -1024,41 +1050,6 @@ export default function RegistrationSimulatorPage() {
                       style={{ width: `${fillRate}%` }}
                     />
                   </div>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={() => {
-                      addLog('🔄 Refreshing data...');
-                      fetchCourses();
-                    }}
-                    disabled={isLoading}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Refresh Data
-                  </button>
-                  <button
-                    onClick={async () => {
-                      addLog('🔍 Checking realtime status...');
-                      try {
-                        const response = await fetch('/api/simulator/realtime-check');
-                        const result = await response.json();
-                        if (result.tableExists) {
-                          addLog(`✅ Table exists. Check browser console for realtime logs`);
-                        } else {
-                          addLog(`❌ Table issue: ${result.error}`);
-                        }
-                      } catch (error: any) {
-                        addLog(`❌ Check failed: ${error.message}`);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
-                  >
-                    <Database className="w-3 h-3" />
-                    Check Realtime
-                  </button>
                 </div>
               </div>
 
