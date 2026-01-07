@@ -257,8 +257,8 @@ export default function RegisterPage() {
         </div>
         {/* Centered container with appropriate max-width for 100% zoom */}
         <div 
-          className={`w-full max-w-5xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out ${
-            mounted ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'
+          className={`w-full max-w-6xl flex rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ease-out scale-95 ${
+            mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}
         >
           {/* Left side - Brand/Imagery */}
