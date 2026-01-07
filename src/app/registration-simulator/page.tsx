@@ -261,27 +261,40 @@ export default function RegistrationSimulatorPage() {
 
   // Subscribe to real-time updates (separate effect with empty deps)
   useEffect(() => {
-    console.log('[Simulator] Setting up realtime subscription for:', TEST_TABLE);
+    // Use unique channel name to avoid conflicts
+    const channelName = `simulator-${Date.now()}`;
+    console.log('[Simulator] Setting up realtime subscription for:', TEST_TABLE, 'channel:', channelName);
     
     const channel = supabase
-      .channel('simulator-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
+        { 
+          event: '*',  // Listen to all events
+          schema: 'public', 
+          table: TEST_TABLE 
+        },
         (payload) => {
-          console.log('[Simulator] Realtime UPDATE received:', payload);
-          const newData = payload.new as CourseData;
-          setCourses(prev => 
-            prev.map(c => 
-              c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
-                ? newData
-                : c
-            )
-          );
+          console.log('[Simulator] Realtime event received:', payload.eventType, payload);
+          if (payload.eventType === 'UPDATE') {
+            const newData = payload.new as CourseData;
+            setCourses(prev => 
+              prev.map(c => 
+                c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
+                  ? newData
+                  : c
+              )
+            );
+          }
         }
       )
       .subscribe((status, err) => {
-        console.log('[Simulator] Subscription status:', status, err || '');
+        console.log('[Simulator] Subscription status:', status, err ? err.message : '');
+        if (status === 'SUBSCRIBED') {
+          console.log('[Simulator] ✅ Successfully subscribed to realtime');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Simulator] ❌ Channel error:', err);
+        }
       });
 
     return () => {
