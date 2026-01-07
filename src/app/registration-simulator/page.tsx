@@ -269,67 +269,40 @@ export default function RegistrationSimulatorPage() {
     }
   }, [addLog, fetchCourses]);
 
-  // Subscribe to real-time updates
+  // Initial fetch
   useEffect(() => {
     fetchCourses();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Subscribe to real-time updates (separate from fetch to avoid re-subscription)
+  useEffect(() => {
     console.log('[Realtime] Setting up subscription to table:', TEST_TABLE);
     
-    // Use unique channel name like useCourses does
-    const channelName = `simulator-realtime-${TEST_TABLE}-${Date.now()}`;
-    
     const channel = supabase
-      .channel(channelName)
+      .channel('simulator-realtime')
       .on(
         'postgres_changes',
-        { 
-          event: '*',  // Listen to all events like useCourses
-          schema: 'public', 
-          table: TEST_TABLE 
-        },
+        { event: 'UPDATE', schema: 'public', table: TEST_TABLE },
         (payload) => {
-          console.log('[Realtime] Received event:', payload.eventType, payload);
-          
-          if (payload.eventType === 'UPDATE') {
-            const newData = payload.new as CourseData;
-            console.log('[Realtime] UPDATE - Course:', newData["Course Code"], 
-              'Section:', newData["Section"],
-              'Seat Left:', newData["Seat Left"]);
-            
-            setCourses(prev => {
-              const updated = prev.map(c => 
-                c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
-                  ? newData
-                  : c
-              );
-              console.log('[Realtime] Updated courses, new count:', updated.length);
-              return updated;
-            });
-          } else if (payload.eventType === 'INSERT') {
-            const newData = payload.new as CourseData;
-            console.log('[Realtime] INSERT - New course added');
-            setCourses(prev => [...prev, newData]);
-          } else if (payload.eventType === 'DELETE') {
-            const oldData = payload.old as CourseData;
-            console.log('[Realtime] DELETE - Course removed');
-            setCourses(prev => prev.filter(c => 
-              !(c["Course Code"] === oldData["Course Code"] && c["Section"] === oldData["Section"])
-            ));
-          }
+          console.log('[Realtime] Received update:', payload);
+          const newData = payload.new as CourseData;
+          setCourses(prev => 
+            prev.map(c => 
+              c["Course Code"] === newData["Course Code"] && c["Section"] === newData["Section"]
+                ? newData
+                : c
+            )
+          );
         }
       )
       .subscribe((status) => {
         console.log('[Realtime] Subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          addLog('🔴 Realtime connected');
-        }
       });
 
     return () => {
-      console.log('[Realtime] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [fetchCourses, addLog]);
+  }, []); // Empty deps - only run once on mount
 
   // Timer for elapsed time
   useEffect(() => {
