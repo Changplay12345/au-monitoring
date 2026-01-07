@@ -22,15 +22,21 @@ export async function POST() {
       return NextResponse.json({ error: 'No data in source table' }, { status: 400 })
     }
 
-    // Delete existing data in test table
+    // Try to clear test table - if it doesn't exist, we'll handle it
     const { error: deleteError } = await supabase
       .from(TEST_TABLE)
       .delete()
       .neq('id', 0) // Delete all rows
 
     if (deleteError) {
-      console.error('Error clearing test table:', deleteError)
-      // Continue anyway - table might be empty
+      console.log('Test table might not exist, attempting to create it...')
+      
+      // If table doesn't exist, we need to create it via SQL
+      // Since we can't run DDL directly, we'll use a workaround
+      // by using the service role key and RPC if available
+      
+      // For now, let's try to insert data and see if the table gets created automatically
+      // (Supabase might auto-create tables on insert in some cases)
     }
 
     // Insert data into test table
@@ -43,6 +49,19 @@ export async function POST() {
 
     if (insertError) {
       console.error('Error inserting data:', insertError)
+      
+      // If it's a "relation does not exist" error, the table doesn't exist
+      if (insertError.message.includes('does not exist') || insertError.message.includes('relation')) {
+        return NextResponse.json({ 
+          error: `Test table '${TEST_TABLE}' does not exist. Please create it manually in Supabase dashboard with the same structure as '${SOURCE_TABLE}'.`,
+          details: {
+            sourceTable: SOURCE_TABLE,
+            testTable: TEST_TABLE,
+            needsManualCreation: true
+          }
+        }, { status: 400 })
+      }
+      
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 

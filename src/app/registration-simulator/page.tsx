@@ -206,6 +206,16 @@ export default function RegistrationSimulatorPage() {
 
       if (error) {
         console.error('Supabase error:', error);
+        
+        // Check if table doesn't exist
+        if (error.message.includes('does not exist') || error.message.includes('relation')) {
+          addLog(`❌ Table '${TEST_TABLE}' doesn't exist`);
+          addLog(`📝 Click "Initialize Test Table" to create it`);
+          setCourses([]);
+          setIsUsingTestData(false);
+          return;
+        }
+        
         addLog(`❌ Error: ${error.message}`);
         throw error;
       }
@@ -237,6 +247,14 @@ export default function RegistrationSimulatorPage() {
       const result = await response.json();
       
       if (!response.ok) {
+        // Check if it's the table doesn't exist error
+        if (result.details?.needsManualCreation) {
+          addLog(`❌ Table '${TEST_TABLE}' doesn't exist in database`);
+          addLog(`📝 To fix: Create table '${TEST_TABLE}' in Supabase dashboard with same structure as 'data_vme'`);
+          addLog(`🔗 Go to: Supabase Dashboard → Table Editor → Create Table`);
+          addLog(`📋 Copy columns from 'data_vme' table`);
+          return;
+        }
         throw new Error(result.error || 'Failed to initialize');
       }
       
