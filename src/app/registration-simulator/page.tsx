@@ -169,9 +169,15 @@ export default function RegistrationSimulatorPage() {
             }));
           }
           
-          // Sync logs from server
-          if (data.logs && data.logs.length > 0) {
-            setLogs(data.logs);
+          // Only sync logs from server if simulation is running
+          // Don't overwrite local logs when not simulating
+          if (data.isRunning && data.logs && data.logs.length > 0) {
+            setLogs(prev => {
+              // Merge server logs with local logs, avoiding duplicates
+              const serverLogs = data.logs;
+              const newLogs = serverLogs.filter((log: string) => !prev.includes(log));
+              return [...newLogs, ...prev].slice(0, 100);
+            });
           }
         }
       } catch (error) {
@@ -1087,7 +1093,7 @@ export default function RegistrationSimulatorPage() {
                               <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 relative">
                                 {course["Seat Used"]}
                                 {activeChange && activeChange.change > 0 && (
-                                  <span className="absolute -top-1 right-0 text-xs text-green-500 font-bold animate-float-up">
+                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-orange-500 font-bold animate-float-up">
                                     +{activeChange.change}
                                   </span>
                                 )}
@@ -1100,9 +1106,14 @@ export default function RegistrationSimulatorPage() {
                                 }`}>
                                   {course["Seat Left"]}
                                 </span>
+                                {activeChange && activeChange.change > 0 && (
+                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-red-500 font-bold animate-float-up">
+                                    -{activeChange.change}
+                                  </span>
+                                )}
                                 {activeChange && activeChange.change < 0 && (
-                                  <span className="absolute -top-1 right-0 text-xs text-red-500 font-bold animate-float-up">
-                                    {activeChange.change}
+                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-green-500 font-bold animate-float-up">
+                                    +{Math.abs(activeChange.change)}
                                   </span>
                                 )}
                               </td>
