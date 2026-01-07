@@ -1,9 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, createServerClient } from '@/lib/supabase'
 import { Course, NormalizedCourse, CourseGroup, FilterState, DAYS } from '@/lib/types'
 import { normalizeCourse, toMinutes } from '@/lib/utils'
+
+// Get the appropriate client - use server client if available for bypassing RLS
+const getClient = () => {
+  if (typeof window === 'undefined') {
+    return createServerClient()
+  }
+  return supabase
+}
 
 const PROD_TABLE = 'data_vme'
 const TEST_TABLE = 'data_vme_test'
@@ -44,7 +52,7 @@ export function useCourses() {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch courses from Supabase
+  // Fetch courses via API (bypasses RLS with service role key)
   const fetchCourses = useCallback(async () => {
     const tableToFetch = databaseMode === 'test' ? TEST_TABLE : PROD_TABLE
     console.log('[useCourses] fetchCourses called, fetching from:', tableToFetch)
@@ -52,19 +60,19 @@ export function useCourses() {
     setError(null)
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from(tableToFetch)
-        .select('*')
+      // Use API route to fetch courses (server-side with service role key)
+      const response = await fetch(`/api/courses?table=${tableToFetch}`)
+      const result = await response.json()
 
-      if (fetchError) {
-        console.error('Supabase fetch error:', fetchError)
-        setError(fetchError.message)
+      if (!response.ok || result.error) {
+        console.error('API fetch error:', result.error)
+        setError(result.error || 'Failed to fetch courses')
         setIsLoading(false)
         return
       }
 
-      console.log('[useCourses] Fetched', data?.length, 'courses from', tableToFetch)
-      setRawCourses((data || []).filter(Boolean) as Course[])
+      console.log('[useCourses] Fetched', result.count, 'courses from', tableToFetch)
+      setRawCourses((result.data || []).filter(Boolean) as Course[])
       setIsLoading(false)
     } catch (error) {
       console.error('Unexpected fetch error:', error)
