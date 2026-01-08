@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const TQF_BACKEND_URL = process.env.TQF_BACKEND_URL || 'http://localhost:8001'
+import { getSession } from '@/lib/tqf-extractor'
 
 export async function GET(
   request: NextRequest,
@@ -9,31 +8,22 @@ export async function GET(
   try {
     const { sessionId } = await params
 
-    const response = await fetch(`${TQF_BACKEND_URL}/graph/${sessionId}`)
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Graph not found' }))
-      return NextResponse.json(
-        { error: errorData.detail || 'Graph not found' },
-        { status: response.status }
-      )
-    }
-
-    const data = await response.json()
-    return NextResponse.json(data)
-
-  } catch (error: any) {
-    console.error('[TQF Graph API] Error:', error.message)
+    const session = getSession(sessionId)
     
-    if (error.cause?.code === 'ECONNREFUSED' || error.message.includes('fetch failed')) {
+    if (!session || !session.graph) {
       return NextResponse.json(
-        { error: 'TQF Backend is not running' },
-        { status: 503 }
+        { error: 'Session not found or expired' },
+        { status: 404 }
       )
     }
+
+    return NextResponse.json(session.graph)
+
+  } catch (error: unknown) {
+    console.error('[TQF Graph API] Error:', error instanceof Error ? error.message : error)
     
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }

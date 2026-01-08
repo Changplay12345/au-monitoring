@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const TQF_BACKEND_URL = process.env.TQF_BACKEND_URL || 'http://localhost:8001'
+import { getCSV } from '@/lib/tqf-extractor'
 
 export async function GET(
   request: NextRequest,
@@ -9,16 +8,14 @@ export async function GET(
   try {
     const { sessionId } = await params
 
-    const response = await fetch(`${TQF_BACKEND_URL}/csv/${sessionId}`)
-
-    if (!response.ok) {
+    const csvContent = getCSV(sessionId)
+    
+    if (!csvContent) {
       return NextResponse.json(
-        { error: 'CSV not found' },
-        { status: response.status }
+        { error: 'Session not found or expired' },
+        { status: 404 }
       )
     }
-
-    const csvContent = await response.text()
     
     return new NextResponse(csvContent, {
       headers: {
@@ -27,18 +24,11 @@ export async function GET(
       }
     })
 
-  } catch (error: any) {
-    console.error('[TQF CSV API] Error:', error.message)
-    
-    if (error.cause?.code === 'ECONNREFUSED' || error.message.includes('fetch failed')) {
-      return NextResponse.json(
-        { error: 'TQF Backend is not running' },
-        { status: 503 }
-      )
-    }
+  } catch (error: unknown) {
+    console.error('[TQF CSV API] Error:', error instanceof Error ? error.message : error)
     
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
