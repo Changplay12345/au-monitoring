@@ -203,15 +203,20 @@ export default function TQFMasterPage() {
               </button>
 
               {/* Download Sample Button */}
-              <a
-                href="/TQF_Sample.docx"
-                download="TQF_Sample.docx"
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/TQF_Sample.docx';
+                  link.download = 'TQF_Sample.docx';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
                 className="au-btn-secondary text-base flex items-center gap-2"
                 style={{ 
                   border: '2px solid #2B579A',
                   color: '#2B579A',
                   fontWeight: 600,
-                  textDecoration: 'none',
                 }}
               >
                 {/* Microsoft Word Icon */}
@@ -219,7 +224,7 @@ export default function TQFMasterPage() {
                   <path d="M6 2h8l6 6v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm7 1.5V9h5.5L13 3.5zM7 13l1.5 6h1l1-4 1 4h1l1.5-6h-1l-1 4-1-4h-1l-1 4-1-4H7z"/>
                 </svg>
                 Download Sample
-              </a>
+              </button>
             </div>
             
             {/* Hint text */}
