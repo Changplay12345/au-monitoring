@@ -57,7 +57,8 @@ export default function TQFMasterPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const endpoint = useFast ? 'http://localhost:8001/parse-fast' : 'http://localhost:8001/parse';
+      // Use Next.js API route which proxies to backend
+      const endpoint = useFast ? '/api/tqf/parse-fast' : '/api/tqf/parse-fast';
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
@@ -86,7 +87,7 @@ export default function TQFMasterPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8001/csv/${parseResponse.session_id}`);
+      const response = await fetch(`/api/tqf/csv/${parseResponse.session_id}`);
       
       if (!response.ok) {
         throw new Error('Failed to download CSV');

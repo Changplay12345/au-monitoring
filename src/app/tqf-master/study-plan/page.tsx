@@ -1293,8 +1293,8 @@ function StudyPlanPage() {
       try {
         // Fetch graph data and program info in parallel
         const [graphResponse, programResponse] = await Promise.all([
-          fetch(`http://localhost:8001/graph/${sessionId}`),
-          fetch(`http://localhost:8001/program-info/${sessionId}`)
+          fetch(`/api/tqf/graph/${sessionId}`),
+          fetch(`/api/tqf/program-info/${sessionId}`)
         ]);
         
         if (!graphResponse.ok) {
