@@ -202,50 +202,29 @@ export default function TQFMasterPage() {
                 )}
               </button>
 
-              {/* AI Extract Button */}
-              <button
-                onClick={() => handleExtract(false)}
-                disabled={!selectedFile || isProcessing}
-                className="au-btn-primary text-base"
+              {/* Download Sample Button */}
+              <a
+                href="/TQF_Sample.docx"
+                download="TQF_Sample.docx"
+                className="au-btn-secondary text-base flex items-center gap-2"
+                style={{ 
+                  border: '2px solid #2B579A',
+                  color: '#2B579A',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
               >
-                {isAIProcessing ? (
-                  <>
-                    <svg
-                      className="animate-spin h-5 w-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Analyzing with Gemini...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    AI Extract
-                  </>
-                )}
-              </button>
+                {/* Microsoft Word Icon */}
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 2h8l6 6v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm7 1.5V9h5.5L13 3.5zM7 13l1.5 6h1l1-4 1 4h1l1.5-6h-1l-1 4-1-4h-1l-1 4-1-4H7z"/>
+                </svg>
+                Download Sample
+              </a>
             </div>
             
             {/* Hint text */}
             <p className="mt-3 text-xs" style={{ color: 'var(--au-text-muted)' }}>
-              Fast Extract: ~2-5 seconds | AI Extract: ~30-60 seconds
+              Fast Extract: ~2-5 seconds | Download sample TQF document to test
             </p>
           </div>
 
@@ -385,7 +364,7 @@ export default function TQFMasterPage() {
               Manage Your Study Plan in Just a Few Steps
             </h2>
             <p className="text-sm mb-12" style={{ color: 'rgba(255,255,255,0.8)', maxWidth: '600px', margin: '24px auto 48px' }}>
-              Our AI-powered tool extracts course information from your study plan documents and generates structured data for easy management.
+              Extract course information from your study plan documents and generate structured data for easy management.
             </p>
             
             {/* Feature Cards Grid */}
@@ -409,7 +388,7 @@ export default function TQFMasterPage() {
                   </svg>
                 </div>
                 <h3 className="au-feature-card-title">Review Courses</h3>
-                <p className="au-feature-card-text">AI extracts and validates all course information automatically</p>
+                <p className="au-feature-card-text">Extracts and validates all course information automatically</p>
               </div>
               
               {/* Card 3 - Secondary */}

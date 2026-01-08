@@ -221,13 +221,21 @@ const SteamParticle = ({ delay, x, size }: { delay: number; x: number; size: num
 
 const WelcomeOverlay: React.FC<WelcomeOverlayProps> = ({ isVisible, onGetStarted }) => {
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8, ease: 'easeInOut' }}
+          exit={{ 
+            opacity: 0,
+            scale: 1.05,
+            filter: 'blur(10px)',
+          }}
+          transition={{ 
+            duration: 0.6, 
+            ease: [0.4, 0, 0.2, 1],
+          }}
+          style={{ zoom: 0.9 }}
         >
           {/* Blurred glassmorphism background */}
           <motion.div
@@ -237,8 +245,12 @@ const WelcomeOverlay: React.FC<WelcomeOverlayProps> = ({ isVisible, onGetStarted
               WebkitBackdropFilter: 'blur(12px)',
               backgroundColor: 'rgba(244, 244, 244, 0.7)',
             }}
-            exit={{ backdropFilter: 'blur(0px)', backgroundColor: 'rgba(244, 244, 244, 0)' }}
-            transition={{ duration: 0.8 }}
+            exit={{ 
+              backdropFilter: 'blur(0px)', 
+              backgroundColor: 'rgba(244, 244, 244, 0)',
+              opacity: 0,
+            }}
+            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           />
 
           {/* Mist/vignette effect */}
