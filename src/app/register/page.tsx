@@ -313,9 +313,9 @@ export default function RegisterPage() {
               {/* Logo */}
               <div className="flex justify-center mb-4">
                 <img
-                  src="/au-monitoring-logo.png"
+                  src="/au-monitoring-logo2.png"
                   alt="AU Monitoring Logo"
-                  className="w-20 h-20 object-contain rounded-full"
+                  className="w-24 h-24 object-cover rounded-full"
                 />
               </div>
 

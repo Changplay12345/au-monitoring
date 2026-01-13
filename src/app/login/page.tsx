@@ -151,9 +151,9 @@ function LoginContent() {
             <div className="absolute inset-0 rounded-full border-4 border-red-200 animate-ping opacity-20" />
             <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-pulse" />
             <img
-              src="https://upload.wikimedia.org/wikipedia/en/5/50/Assumption_University_of_Thailand_%28logo%29.png"
-              alt="AU Logo"
-              className="w-24 h-24 object-contain relative z-10 animate-pulse"
+              src="/au-monitoring-logo2.png"
+              alt="AU Monitoring Logo"
+              className="w-24 h-24 object-cover rounded-full relative z-10 animate-pulse"
             />
           </div>
           {/* Loading spinner */}
@@ -233,9 +233,9 @@ function LoginContent() {
               {/* Logo */}
               <div className="flex justify-center mb-6">
                 <img
-                  src="https://upload.wikimedia.org/wikipedia/en/5/50/Assumption_University_of_Thailand_%28logo%29.png"
-                  alt="AU Logo"
-                  className="w-24 h-24 object-contain"
+                  src="/au-monitoring-logo2.png"
+                  alt="AU Monitoring Logo"
+                  className="w-24 h-24 object-cover rounded-full"
                 />
               </div>
 

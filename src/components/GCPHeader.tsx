@@ -59,12 +59,8 @@ export function GCPHeader({
           onClick={onLogoClick}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          <img 
-            src="/au-monitoring-logo.png" 
-            alt="AU Monitoring" 
-            className="w-10 h-10 rounded-full object-cover -my-1"
-          />
-          <span className="text-lg font-semibold text-gray-800 tracking-tight">AU Monitoring</span>
+          <span className="text-xl font-bold text-red-600 tracking-tight">AU</span>
+          <span className="text-xl font-light text-gray-700"> Monitoring</span>
         </button>
 
         {/* Project selector - dynamic based on current feature */}
