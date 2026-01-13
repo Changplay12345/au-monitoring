@@ -9,7 +9,8 @@ import DustBackground from "@/components/BackGroundAnimated";
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, isLoading } = useAuth()
+  const { login, isLoading: authLoading } = useAuth()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const isLogoutPage = searchParams.get('logout') === 'true'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -38,26 +39,41 @@ function LoginContent() {
       return
     }
 
+    setIsSubmitting(true)
+    
+    // Show animation for at least 1 second
+    const startTime = Date.now()
+    
     // Get redirect URL from query params
     const redirectTo = searchParams.get('redirect') || '/home'
     
     const result = await login(username, password, redirectTo)
+    
+    // Calculate remaining time to show animation (minimum 1 second total)
+    const elapsed = Date.now() - startTime
+    const remainingDelay = Math.max(1000 - elapsed, 0)
+    
     if (!result.success) {
-      setError(result.error || 'Login failed')
+      setTimeout(() => {
+        setError(result.error || 'Login failed')
+        setIsSubmitting(false)
+      }, remainingDelay)
     }
+    // On success, animation stays until redirect happens
   }
 
   const handleOAuthLogin = async (provider: 'google' | 'facebook') => {
+    setIsSubmitting(true)
     try {
       const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
+      const supabaseClient = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
       
       const redirectUrl = `${window.location.origin}/auth/callback`
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabaseClient.auth.signInWithOAuth({
         provider: provider,
         options: {
           redirectTo: redirectUrl,
@@ -67,6 +83,7 @@ function LoginContent() {
       
       if (error) {
         setError(error.message)
+        setIsSubmitting(false)
         return
       }
       
@@ -86,6 +103,7 @@ function LoginContent() {
         
         if (!popup) {
           setError('Popup blocked. Please allow popups and try again.')
+          setIsSubmitting(false)
           return
         }
         
@@ -93,13 +111,9 @@ function LoginContent() {
         const checkClosed = setInterval(() => {
           if (popup.closed) {
             clearInterval(checkClosed)
-            // Check if user is in localStorage (fallback)
-            const userData = localStorage.getItem('au_monitoring_user')
-            if (userData) {
-              window.location.href = '/home'
-            } else {
-              console.error('No user data found after OAuth')
-            }
+            setIsSubmitting(false)
+            // Redirect to home after popup closes
+            window.location.href = '/home'
           }
         }, 1000)
         
@@ -125,13 +139,12 @@ function LoginContent() {
         setTimeout(() => {
           clearInterval(checkClosed)
           window.removeEventListener('message', messageHandler)
-          if (!popup.closed) {
-            popup.close()
-          }
+          setIsSubmitting(false)
         }, 300000)
       }
     } catch (err) {
       setError('Failed to initialize OAuth login')
+      setIsSubmitting(false)
     }
   }
 
@@ -140,20 +153,20 @@ function LoginContent() {
       {/* Signing in animation overlay */}
       <div 
         className={`fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 ${
-          isLoading && !isLogoutPage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          isSubmitting && !isLogoutPage ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className={`text-center transform transition-all duration-500 ${
-          isLoading ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
+          isSubmitting ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
         }`}>
-          {/* Animated logo */}
-          <div className="relative w-24 h-24 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-red-200 animate-ping opacity-20" />
-            <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-pulse" />
+          {/* Animated logo - fixed height container, logo can overflow without affecting layout */}
+          <div className="relative h-24 mx-auto mb-6">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-200 animate-ping opacity-20" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-300 animate-pulse" />
             <img
               src="/au-monitoring-logo2.png"
               alt="AU Monitoring Logo"
-              className="w-24 h-24 object-cover rounded-full relative z-10 animate-pulse"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-22 w-52 h-52 object-contain rounded-full z-10 animate-pulse bg-white"
             />
           </div>
           {/* Loading spinner */}
@@ -230,12 +243,12 @@ function LoginContent() {
                 You have been signed out successfully
               </div>
 
-              {/* Logo */}
-              <div className="flex justify-center mb-6">
+              {/* Logo - fixed height container, logo can overflow without affecting layout */}
+              <div className="flex justify-center mb-6 h-24 relative">
                 <img
                   src="/au-monitoring-logo2.png"
                   alt="AU Monitoring Logo"
-                  className="w-24 h-24 object-cover rounded-full"
+                  className="w-42 h-42 object-cover rounded-full absolute top-15 left-1/2 -translate-x-1/2 -translate-y-1/2"
                 />
               </div>
 
@@ -279,7 +292,7 @@ function LoginContent() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
-                      disabled={isLoading || isSuccess}
+                      disabled={isSubmitting || isSuccess}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
@@ -301,7 +314,7 @@ function LoginContent() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      disabled={isLoading || isSuccess}
+                      disabled={isSubmitting || isSuccess}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-400 outline-none transition-all duration-200 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
@@ -328,14 +341,14 @@ function LoginContent() {
                 {/* Submit button */}
                 <button
                   type="submit"
-                  disabled={isLoading || isSuccess}
+                  disabled={isSubmitting || isSuccess}
                   className={`w-full py-3 px-4 rounded-md font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2 ${
                     isSuccess 
                       ? 'bg-green-600' 
                       : 'bg-red-700 hover:bg-red-800 hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed'
                   }`}
                 >
-                  {isLoading ? (
+                  {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
                       Signing in...
@@ -366,8 +379,8 @@ function LoginContent() {
                 <button
                   type="button"
                   onClick={() => handleOAuthLogin('google')}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

@@ -70,20 +70,33 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
     <div className={`min-h-screen bg-gray-50 transition-all duration-700 ease-out ${
       isEntering ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
     }`}>
-      {/* Logout transition overlay */}
+      {/* Logout transition overlay - same style as signing in */}
       <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-white transition-all duration-500 ${
+        className={`fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 ${
           isLoggingOut ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className={`text-center transform transition-all duration-500 ${
           isLoggingOut ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
         }`}>
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-            <LogOut className="w-10 h-10 text-red-600" />
+          {/* Animated logo - fixed height container, logo can overflow without affecting layout */}
+          <div className="relative h-24 mx-auto mb-6">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-200 animate-ping opacity-20" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-300 animate-pulse" />
+            <img
+              src="/au-monitoring-logo2.png"
+              alt="AU Monitoring Logo"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-22 w-46 h-46 object-contain rounded-full z-10 animate-pulse bg-white"
+            />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Signing out...</h2>
-          <p className="text-gray-500">See you next time!</p>
+          {/* Loading spinner */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Signing you out...</h2>
+          <p className="text-gray-500 text-sm">See you next time!</p>
         </div>
       </div>
 

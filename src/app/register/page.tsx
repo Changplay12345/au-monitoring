@@ -310,12 +310,12 @@ export default function RegisterPage() {
                 Back to Login
               </a>
 
-              {/* Logo */}
-              <div className="flex justify-center mb-4">
+              {/* Logo - fixed height container, logo can overflow without affecting layout */}
+              <div className="flex justify-center mb-4 h-24 relative">
                 <img
                   src="/au-monitoring-logo2.png"
                   alt="AU Monitoring Logo"
-                  className="w-24 h-24 object-cover rounded-full"
+                  className="w-45 h-45 object-cover rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
                 />
               </div>
 
