@@ -141,13 +141,14 @@ export default function AuthCallbackPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center">
       <div className="text-center">
-        <div className="relative w-24 h-24 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full border-4 border-red-200 animate-ping opacity-20" />
-          <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-pulse" />
+        {/* Animated logo - fixed height container, logo can overflow without affecting layout */}
+        <div className="relative h-24 mx-auto mb-6">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-200 animate-ping opacity-20" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-4 border-red-300 animate-pulse" />
           <img
-            src="https://upload.wikimedia.org/wikipedia/en/5/50/Assumption_University_of_Thailand_%28logo%29.png"
-            alt="AU Logo"
-            className="w-24 h-24 object-contain relative z-10 animate-pulse"
+            src="/au-monitoring-logo2.png"
+            alt="AU Monitoring Logo"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-22 w-46 h-46 object-contain rounded-full z-10 animate-pulse bg-white"
           />
         </div>
         <div className="flex items-center justify-center gap-3 mb-4">
