@@ -38,5 +38,29 @@ CREATE POLICY "Enable write access for all users" ON data_vme
     USING (true)
     WITH CHECK (true);
 
+-- Fix RLS for users table (for manual registration)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access" ON users;
+DROP POLICY IF EXISTS "Allow public insert access" ON users;
+DROP POLICY IF EXISTS "Enable read access for all users" ON users;
+DROP POLICY IF EXISTS "Enable insert access for all users" ON users;
+
+-- Allow anyone to read users (for login checks)
+CREATE POLICY "Enable read access for all users" ON users
+    FOR SELECT
+    USING (true);
+
+-- Allow anyone to insert new users (for registration)
+CREATE POLICY "Enable insert access for all users" ON users
+    FOR INSERT
+    WITH CHECK (true);
+
+-- Allow users to update their own record
+CREATE POLICY "Enable update for own record" ON users
+    FOR UPDATE
+    USING (true)
+    WITH CHECK (true);
+
 -- Verify realtime is enabled for both tables
 -- Go to Database > Replication and ensure both tables have realtime enabled

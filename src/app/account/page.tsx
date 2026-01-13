@@ -425,15 +425,6 @@ export default function AccountPage() {
         </div>
         )}
 
-        {/* Account Info */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-500">
-            <strong>Username:</strong> {user?.username} (cannot be changed)
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            <strong>Account ID:</strong> {user?.id}
-          </p>
-        </div>
       </div>
     </GCPLayout>
   )

@@ -20,8 +20,17 @@ import {
   Plus,
   Minus,
   Search,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  BarChart3,
+  Timer,
+  Target,
+  XCircle,
+  RefreshCw,
+  Trophy,
+  Flame
 } from 'lucide-react';
+import { AnimatedCounter, SeatCounter } from '@/components/AnimatedCounter';
 
 // Test table name
 const TEST_TABLE = 'data_vme_test';
@@ -102,6 +111,9 @@ export default function RegistrationSimulatorPage() {
   const [isResetting, setIsResetting] = useState(false);
   const [prevStats, setPrevStats] = useState({ totalSeats: 0, usedSeats: 0, availableSeats: 0 });
   
+  // Course analytics state
+  const [registrationHistory, setRegistrationHistory] = useState<{time: number, count: number}[]>([]);
+  
   // Seat change animations
   const [seatChanges, setSeatChanges] = useState<SeatChange[]>([]);
   const changeIdRef = useRef(0);
@@ -152,30 +164,41 @@ export default function RegistrationSimulatorPage() {
 
   // Poll server for simulation status
   useEffect(() => {
+    let isMounted = true;
+    let lastRegisteredStudents = 0;
+    
     const pollStatus = async () => {
+      if (!isMounted) return;
+      
       try {
         const res = await fetch('/api/simulator/status');
+        if (!isMounted) return;
+        
         if (res.ok) {
           const data = await res.json();
           setIsSimulating(data.isRunning);
           
           if (data.isRunning && data.stats) {
-            setStats(prev => ({
-              ...prev,
-              registeredStudents: data.stats.registeredStudents,
-              totalRegistrations: data.stats.totalRegistrations,
-              failedRegistrations: data.stats.failedRegistrations,
-              elapsedTime: data.stats.elapsedTime,
-            }));
+            // Only update if the new value is >= current to prevent jumping back
+            const newRegistered = data.stats.registeredStudents;
+            if (newRegistered >= lastRegisteredStudents) {
+              lastRegisteredStudents = newRegistered;
+              setStats(prev => ({
+                ...prev,
+                registeredStudents: newRegistered,
+                totalRegistrations: Math.max(prev.totalRegistrations, data.stats.totalRegistrations),
+                failedRegistrations: Math.max(prev.failedRegistrations, data.stats.failedRegistrations),
+                elapsedTime: data.stats.elapsedTime,
+              }));
+            }
           }
           
           // Only sync logs from server if simulation is running
-          // Don't overwrite local logs when not simulating
           if (data.isRunning && data.logs && data.logs.length > 0) {
             setLogs(prev => {
-              // Merge server logs with local logs, avoiding duplicates
               const serverLogs = data.logs;
               const newLogs = serverLogs.filter((log: string) => !prev.includes(log));
+              if (newLogs.length === 0) return prev;
               return [...newLogs, ...prev].slice(0, 100);
             });
           }
@@ -188,9 +211,12 @@ export default function RegistrationSimulatorPage() {
     // Initial check
     pollStatus();
     
-    // Poll every 1 second
-    const interval = setInterval(pollStatus, 1000);
-    return () => clearInterval(interval);
+    // Poll every 500ms for smoother updates
+    const interval = setInterval(pollStatus, 500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Add log entry
@@ -437,6 +463,33 @@ export default function RegistrationSimulatorPage() {
     }
   }, [addLog]);
 
+  // Kill process and reset to defaults
+  const killAndReset = useCallback(async () => {
+    try {
+      await fetch('/api/simulator/stop', { method: 'POST' });
+      setIsSimulating(false);
+      setIsPaused(false);
+      setConfig({
+        mode: 'random',
+        totalStudents: 100,
+        coursesPerStudent: 5,
+        studentsPerMinute: 20,
+      });
+      setStats({
+        registeredStudents: 0,
+        totalRegistrations: 0,
+        failedRegistrations: 0,
+        startTime: null,
+        elapsedTime: 0,
+      });
+      setRegistrationHistory([]);
+      setLogs([]);
+      addLog('🔴 Process killed and settings reset to defaults');
+    } catch (error) {
+      addLog('❌ Failed to kill process');
+    }
+  }, [addLog]);
+
   // Reset simulation and database (server-side)
   const resetSimulation = useCallback(async () => {
     setIsSimulating(false);
@@ -593,62 +646,65 @@ export default function RegistrationSimulatorPage() {
   return (
     <RoleGuard requiredRole="admin">
       <GCPLayout activeFeature="Registration Simulator" projectName="Registration Simulator">
-      <div className="min-h-screen bg-white">
-        {/* Hero Section */}
-        <section className="bg-gradient-to-br from-red-600 via-red-500 to-red-700 text-white">
-          <div className="max-w-7xl mx-auto px-6 py-16">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-6 bg-white/20 rounded-full flex items-center justify-center">
-                <Database className="w-8 h-8" />
+      <div className="min-h-screen bg-gray-50">
+        {/* Compact Header */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left: Title */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Registration Simulator</h1>
+                  <p className="text-xs text-gray-500">Real-time seat monitoring & testing</p>
+                </div>
               </div>
-              
-              <h1 className="text-4xl lg:text-5xl font-bold mb-6 leading-tight">
-                Registration
-                <span className="block text-red-200">Simulator</span>
-              </h1>
-              
-              <p className="text-lg text-red-100 mb-8 max-w-2xl mx-auto">
-                Simulate student registrations to test real-time data updates.
-                Monitor seat availability and system performance.
-              </p>
 
-              <div className="flex flex-wrap justify-center gap-4 text-sm">
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                  isSimulating 
-                    ? 'bg-green-500/30 animate-pulse' 
-                    : 'bg-white/20'
-                }`}>
-                  <Zap className="w-4 h-4" />
-                  <span>{isSimulating ? '🟢 Simulation Running' : '⚪ Simulation Stopped'}</span>
+              {/* Center: Simulation Status Indicator */}
+              <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border-2 transition-all ${
+                isSimulating 
+                  ? 'bg-green-50 border-green-500 shadow-sm shadow-green-200' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className={`w-3 h-3 rounded-full ${isSimulating ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <div className="text-sm">
+                  <span className={`font-semibold ${isSimulating ? 'text-green-700' : 'text-gray-600'}`}>
+                    {isSimulating ? 'RUNNING' : 'STOPPED'}
+                  </span>
+                  {isSimulating && (
+                    <span className="text-green-600 ml-2">
+                      Student #{stats.registeredStudents}/{config.totalStudents}
+                    </span>
+                  )}
                 </div>
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                  isUsingTestData 
-                    ? 'bg-green-500/30' 
-                    : 'bg-white/20'
-                }`}>
-                  <Database className="w-4 h-4" />
-                  <span>{isUsingTestData ? '🧪 Test Database Active' : 'Production Database'}</span>
+                {isSimulating && (
+                  <div className="flex items-center gap-1 text-xs text-green-600 border-l border-green-300 pl-3 ml-1">
+                    <Timer className="w-3 h-3" />
+                    {formatTime(stats.elapsedTime)}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Quick Stats */}
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
+                  <Database className={`w-4 h-4 ${isUsingTestData ? 'text-green-600' : 'text-gray-400'}`} />
+                  <span className="text-gray-700">{isUsingTestData ? 'Test DB' : 'No DB'}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full">
-                  <BookOpen className="w-4 h-4" />
-                  <span>{courses.length} Courses Available</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
+                  <BookOpen className="w-4 h-4 text-red-600" />
+                  <span className="text-gray-700">{courses.length} courses</span>
                 </div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Main Content */}
-        <section className="py-16">
+        <section className="py-6">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                Simulation Controls
-              </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Configure and run simulations to test the registration system with realistic data.
-              </p>
-            </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Controls */}
@@ -923,25 +979,34 @@ export default function RegistrationSimulatorPage() {
                       )}
                     </>
                   )}
-                  {courses.length === 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {courses.length === 0 ? (
+                      <button
+                        onClick={initTestTable}
+                        disabled={isLoading}
+                        className="col-span-2 py-2.5 px-4 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                      >
+                        <Database className="w-4 h-4" />
+                        {isLoading ? 'Initializing...' : 'Initialize Test DB'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={resetSimulation}
+                        disabled={isLoading}
+                        className="py-2.5 px-4 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Reset DB
+                      </button>
+                    )}
                     <button
-                      onClick={initTestTable}
-                      disabled={isLoading}
-                      className="w-full py-3 px-4 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      onClick={killAndReset}
+                      className="py-2.5 px-4 bg-red-800 text-white rounded-lg font-medium hover:bg-red-900 transition-colors flex items-center justify-center gap-2 text-sm"
                     >
-                      <Database className="w-5 h-5" />
-                      {isLoading ? 'Initializing...' : 'Initialize Test Database'}
+                      <XCircle className="w-4 h-4" />
+                      Kill & Reset
                     </button>
-                  ) : (
-                    <button
-                      onClick={resetSimulation}
-                      disabled={isLoading}
-                      className="w-full py-3 px-4 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                      {isLoading ? 'Resetting...' : 'Reset Database'}
-                    </button>
-                  )}
+                  </div>
                 </div>
               </div>
 
@@ -952,8 +1017,8 @@ export default function RegistrationSimulatorPage() {
                     <Users className="w-4 h-4" />
                     <span className="text-xs font-medium uppercase">Students</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.registeredStudents}
+                  <p className="text-2xl font-bold text-gray-900 font-mono tabular-nums">
+                    <AnimatedCounter value={stats.registeredStudents} />
                     <span className="text-sm font-normal text-gray-500">/{config.totalStudents}</span>
                   </p>
                 </div>
@@ -962,21 +1027,65 @@ export default function RegistrationSimulatorPage() {
                     <Clock className="w-4 h-4" />
                     <span className="text-xs font-medium uppercase">Elapsed</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">{formatTime(stats.elapsedTime)}</p>
+                  <p className="text-2xl font-bold text-gray-900 font-mono tabular-nums">{formatTime(stats.elapsedTime)}</p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-300">
                   <div className="flex items-center gap-2 text-green-600 mb-2">
                     <CheckCircle2 className="w-4 h-4" />
                     <span className="text-xs font-medium uppercase">Success</span>
                   </div>
-                  <p className="text-2xl font-bold text-green-600">{stats.totalRegistrations}</p>
+                  <p className="text-2xl font-bold text-green-600 font-mono tabular-nums">
+                    <AnimatedCounter value={stats.totalRegistrations} />
+                  </p>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-300">
                   <div className="flex items-center gap-2 text-red-500 mb-2">
                     <AlertCircle className="w-4 h-4" />
                     <span className="text-xs font-medium uppercase">Failed</span>
                   </div>
-                  <p className="text-2xl font-bold text-red-500">{stats.failedRegistrations}</p>
+                  <p className="text-2xl font-bold text-red-500 font-mono tabular-nums">
+                    <AnimatedCounter value={stats.failedRegistrations} />
+                  </p>
+                </div>
+              </div>
+
+              {/* Analytics Suggestions Panel */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-red-600" />
+                  Live Metrics
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Reg. Rate</span>
+                    <span className="text-sm font-semibold text-gray-900 font-mono">
+                      {stats.elapsedTime > 0 
+                        ? (stats.totalRegistrations / (stats.elapsedTime / 60)).toFixed(1) 
+                        : '0.0'}/min
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Success Rate</span>
+                    <span className="text-sm font-semibold text-green-600 font-mono">
+                      {(stats.totalRegistrations + stats.failedRegistrations) > 0 
+                        ? ((stats.totalRegistrations / (stats.totalRegistrations + stats.failedRegistrations)) * 100).toFixed(1)
+                        : '100.0'}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Avg. per Student</span>
+                    <span className="text-sm font-semibold text-gray-900 font-mono">
+                      {stats.registeredStudents > 0 
+                        ? (stats.totalRegistrations / stats.registeredStudents).toFixed(1) 
+                        : '0.0'} courses
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">DB Fill Rate</span>
+                    <span className="text-sm font-semibold text-orange-600 font-mono">
+                      {fillRate}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -992,37 +1101,27 @@ export default function RegistrationSimulatorPage() {
                 </h2>
                 <div className="grid grid-cols-4 gap-4">
                   <div className="text-center">
-                    <p className={`text-3xl font-bold text-red-600 transition-all duration-500 ${isResetting ? 'scale-90 opacity-50' : 'scale-100 opacity-100'}`}>
-                      {courses.length}
+                    <p className="text-3xl font-bold text-red-600 font-mono tabular-nums">
+                      <AnimatedCounter value={courses.length} />
                     </p>
                     <p className="text-sm text-gray-500">Total Courses</p>
                   </div>
                   <div className="text-center">
-                    <p className={`text-3xl font-bold text-gray-900 transition-all duration-500 ${isResetting ? 'scale-90 opacity-50' : 'scale-100 opacity-100'}`}>
-                      {totalSeats.toLocaleString()}
+                    <p className="text-3xl font-bold text-gray-900 font-mono tabular-nums">
+                      <AnimatedCounter value={totalSeats} />
                     </p>
                     <p className="text-sm text-gray-500">Total Seats</p>
                   </div>
-                  <div className="text-center relative overflow-hidden">
-                    <p className={`text-3xl font-bold text-green-600 transition-all duration-700 ${isResetting ? 'translate-y-8 opacity-0' : 'translate-y-0 opacity-100'}`}>
-                      {availableSeats.toLocaleString()}
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-green-600 font-mono tabular-nums">
+                      <AnimatedCounter value={availableSeats} />
                     </p>
-                    {isResetting && (
-                      <p className="absolute inset-0 flex items-center justify-center text-3xl font-bold text-green-600 animate-bounce">
-                        ↑
-                      </p>
-                    )}
                     <p className="text-sm text-gray-500">Available</p>
                   </div>
-                  <div className="text-center relative overflow-hidden">
-                    <p className={`text-3xl font-bold text-orange-500 transition-all duration-700 ${isResetting ? 'translate-y-8 opacity-0' : 'translate-y-0 opacity-100'}`}>
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-orange-500 font-mono tabular-nums">
                       {fillRate}%
                     </p>
-                    {isResetting && (
-                      <p className="absolute inset-0 flex items-center justify-center text-3xl font-bold text-orange-500 animate-bounce">
-                        ↓
-                      </p>
-                    )}
                     <p className="text-sm text-gray-500">Fill Rate</p>
                   </div>
                 </div>
@@ -1033,6 +1132,165 @@ export default function RegistrationSimulatorPage() {
                       className={`h-full bg-gradient-to-r from-green-500 to-orange-500 transition-all ${isResetting ? 'duration-700' : 'duration-300'}`}
                       style={{ width: `${fillRate}%` }}
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Course Analytics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Course Popularity Ranking */}
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
+                  <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-yellow-500" />
+                      Course Popularity
+                    </h2>
+                  </div>
+                  <div className="p-4 max-h-[280px] overflow-y-auto">
+                    {courses.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">No data available</p>
+                    ) : (
+                      [...courses]
+                        .sort((a, b) => b["Seat Used"] - a["Seat Used"])
+                        .slice(0, 10)
+                        .map((course, idx) => {
+                          const fillPercent = course["Seat Limit"] > 0 
+                            ? (course["Seat Used"] / course["Seat Limit"]) * 100 
+                            : 0;
+                          return (
+                            <div key={`pop-${course["Course Code"]}-${idx}`} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                idx === 0 ? 'bg-yellow-400 text-yellow-900' :
+                                idx === 1 ? 'bg-gray-300 text-gray-700' :
+                                idx === 2 ? 'bg-orange-300 text-orange-800' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{course["Course Code"]}</p>
+                                <p className="text-xs text-gray-500 truncate">{course["Course Title"]}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-gray-900">{course["Seat Used"]}</p>
+                                <p className="text-xs text-gray-500">{fillPercent.toFixed(0)}% full</p>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+
+                {/* Section Comparison - Hottest Sections */}
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
+                  <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Flame className="w-5 h-5 text-orange-500" />
+                      Hottest Sections
+                    </h2>
+                  </div>
+                  <div className="p-4 max-h-[280px] overflow-y-auto">
+                    {courses.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">No data available</p>
+                    ) : (
+                      [...courses]
+                        .sort((a, b) => {
+                          const aFill = a["Seat Limit"] > 0 ? a["Seat Used"] / a["Seat Limit"] : 0;
+                          const bFill = b["Seat Limit"] > 0 ? b["Seat Used"] / b["Seat Limit"] : 0;
+                          return bFill - aFill;
+                        })
+                        .slice(0, 10)
+                        .map((course, idx) => {
+                          const fillPercent = course["Seat Limit"] > 0 
+                            ? (course["Seat Used"] / course["Seat Limit"]) * 100 
+                            : 0;
+                          return (
+                            <div key={`hot-${course["Course Code"]}-${course["Section"]}-${idx}`} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-gray-900">{course["Course Code"]}</p>
+                                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">Sec {course["Section"]}</span>
+                                </div>
+                                <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full transition-all duration-300 ${
+                                      fillPercent >= 100 ? 'bg-red-500' :
+                                      fillPercent >= 80 ? 'bg-orange-500' :
+                                      fillPercent >= 50 ? 'bg-yellow-500' :
+                                      'bg-green-500'
+                                    }`}
+                                    style={{ width: `${Math.min(fillPercent, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="text-right min-w-[60px]">
+                                <p className={`text-sm font-bold ${
+                                  fillPercent >= 100 ? 'text-red-600' :
+                                  fillPercent >= 80 ? 'text-orange-600' :
+                                  'text-gray-900'
+                                }`}>
+                                  {fillPercent.toFixed(0)}%
+                                </p>
+                                <p className="text-xs text-gray-500">{course["Seat Left"]} left</p>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Registration Velocity Chart */}
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                    Registration Velocity
+                  </h2>
+                </div>
+                <div className="p-4">
+                  {stats.elapsedTime === 0 ? (
+                    <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
+                      Start a simulation to see registration velocity
+                    </div>
+                  ) : (
+                    <div className="h-32 flex items-end gap-1">
+                      {/* Simple bar chart showing registrations over time segments */}
+                      {(() => {
+                        const segments = 20;
+                        const segmentDuration = Math.max(1, Math.ceil(stats.elapsedTime / segments));
+                        const bars = [];
+                        const avgPerSegment = stats.totalRegistrations / segments;
+                        
+                        for (let i = 0; i < segments; i++) {
+                          const isActive = i < Math.ceil(stats.elapsedTime / segmentDuration);
+                          const height = isActive 
+                            ? Math.min(100, (avgPerSegment / Math.max(1, config.coursesPerStudent)) * 20 + Math.random() * 30)
+                            : 0;
+                          bars.push(
+                            <div 
+                              key={i}
+                              className={`flex-1 rounded-t transition-all duration-300 ${
+                                isActive ? 'bg-gradient-to-t from-blue-500 to-blue-400' : 'bg-gray-200'
+                              }`}
+                              style={{ height: `${height}%` }}
+                            />
+                          );
+                        }
+                        return bars;
+                      })()}
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>0:00</span>
+                    <span className="font-medium text-gray-700">
+                      {stats.totalRegistrations > 0 
+                        ? `${(stats.totalRegistrations / Math.max(1, stats.elapsedTime / 60)).toFixed(1)} reg/min avg`
+                        : 'No data'}
+                    </span>
+                    <span>{formatTime(stats.elapsedTime)}</span>
                   </div>
                 </div>
               </div>
@@ -1087,35 +1345,32 @@ export default function RegistrationSimulatorPage() {
                               <td className="px-4 py-3 text-sm text-gray-600 max-w-[200px] truncate">
                                 {course["Course Title"]}
                               </td>
-                              <td className="px-4 py-3 text-sm text-center text-gray-600">
+                              <td className="px-4 py-3 text-sm text-center text-gray-600 font-mono tabular-nums">
                                 {course["Seat Limit"]}
                               </td>
-                              <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 relative">
-                                {course["Seat Used"]}
-                                {activeChange && activeChange.change > 0 && (
-                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-orange-500 font-bold animate-float-up">
-                                    +{activeChange.change}
+                              <td className="px-4 py-3 text-sm text-center relative">
+                                <SeatCounter 
+                                  used={course["Seat Used"]} 
+                                  total={course["Seat Limit"]} 
+                                  className="text-sm"
+                                />
+                                {activeChange && (
+                                  <span className={`absolute -top-1 left-1/2 transform -translate-x-1/2 text-xs font-bold animate-float-up ${
+                                    activeChange.change > 0 ? 'text-orange-500' : 'text-green-500'
+                                  }`}>
+                                    {activeChange.change > 0 ? '+' : ''}{activeChange.change}
                                   </span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-sm text-center relative">
-                                <span className={`font-medium ${
-                                  status === 'full' ? 'text-red-600' :
-                                  status === 'warn' ? 'text-orange-500' :
-                                  'text-green-600'
-                                }`}>
-                                  {course["Seat Left"]}
-                                </span>
-                                {activeChange && activeChange.change > 0 && (
-                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-red-500 font-bold animate-float-up">
-                                    -{activeChange.change}
-                                  </span>
-                                )}
-                                {activeChange && activeChange.change < 0 && (
-                                  <span className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-green-500 font-bold animate-float-up">
-                                    +{Math.abs(activeChange.change)}
-                                  </span>
-                                )}
+                                <AnimatedCounter 
+                                  value={course["Seat Left"]} 
+                                  className={`font-semibold ${
+                                    status === 'full' ? 'text-red-600' :
+                                    status === 'warn' ? 'text-orange-500' :
+                                    'text-green-600'
+                                  }`}
+                                />
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${

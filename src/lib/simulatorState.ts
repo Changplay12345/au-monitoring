@@ -117,67 +117,78 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
   return sessionId
 }
 
+// Track if a registration is in progress to prevent overlapping calls
+let isRegistering = false
+
 async function registerStudent() {
-  const supabase = createServerClient()
-  const studentNum = simulatorState.stats.registeredStudents + 1
+  // Prevent overlapping registrations
+  if (isRegistering) return
+  isRegistering = true
+  
+  try {
+    const supabase = createServerClient()
+    const studentNum = simulatorState.stats.registeredStudents + 1
 
-  // Get available courses
-  const { data: courses } = await supabase
-    .from(TEST_TABLE)
-    .select('*')
-    .gt('Seat Left', 0)
-
-  if (!courses || courses.length === 0) {
-    addLog(`⚠️ No available seats for Student #${studentNum}`)
-    simulatorState.stats.registeredStudents = studentNum
-    simulatorState.stats.failedRegistrations += simulatorState.config.coursesPerStudent
-    return
-  }
-
-  // Randomly select courses
-  const numCourses = Math.min(simulatorState.config.coursesPerStudent, courses.length)
-  const shuffled = [...courses].sort(() => Math.random() - 0.5)
-  const selectedCourses = shuffled.slice(0, numCourses)
-
-  let successCount = 0
-  let failedCount = 0
-
-  for (const course of selectedCourses) {
-    // Check current availability
-    const { data: currentData } = await supabase
+    // Get available courses
+    const { data: courses } = await supabase
       .from(TEST_TABLE)
       .select('*')
-      .eq('Course Code', course['Course Code'])
-      .eq('Section', course['Section'])
-      .single()
+      .gt('Seat Left', 0)
 
-    if (!currentData || currentData['Seat Left'] <= 0) {
-      failedCount++
-      continue
+    if (!courses || courses.length === 0) {
+      addLog(`⚠️ No available seats for Student #${studentNum}`)
+      simulatorState.stats.registeredStudents = studentNum
+      simulatorState.stats.failedRegistrations += simulatorState.config.coursesPerStudent
+      return
     }
 
-    // Update seat count
-    const { error } = await supabase
-      .from(TEST_TABLE)
-      .update({
-        'Seat Used': currentData['Seat Used'] + 1,
-        'Seat Left': currentData['Seat Left'] - 1,
-      })
-      .eq('Course Code', course['Course Code'])
-      .eq('Section', course['Section'])
+    // Randomly select courses
+    const numCourses = Math.min(simulatorState.config.coursesPerStudent, courses.length)
+    const shuffled = [...courses].sort(() => Math.random() - 0.5)
+    const selectedCourses = shuffled.slice(0, numCourses)
 
-    if (error) {
-      failedCount++
-      addLog(`❌ Failed: Student #${studentNum} → ${course['Course Code']}-${course['Section']}`)
-    } else {
-      successCount++
-      addLog(`✅ Registered: Student #${studentNum} → ${course['Course Code']}-${course['Section']} (Seat Left: ${currentData['Seat Left'] - 1})`)
+    let successCount = 0
+    let failedCount = 0
+
+    for (const course of selectedCourses) {
+      // Check current availability
+      const { data: currentData } = await supabase
+        .from(TEST_TABLE)
+        .select('*')
+        .eq('Course Code', course['Course Code'])
+        .eq('Section', course['Section'])
+        .single()
+
+      if (!currentData || currentData['Seat Left'] <= 0) {
+        failedCount++
+        continue
+      }
+
+      // Update seat count
+      const { error } = await supabase
+        .from(TEST_TABLE)
+        .update({
+          'Seat Used': currentData['Seat Used'] + 1,
+          'Seat Left': currentData['Seat Left'] - 1,
+        })
+        .eq('Course Code', course['Course Code'])
+        .eq('Section', course['Section'])
+
+      if (error) {
+        failedCount++
+        addLog(`❌ Failed: Student #${studentNum} → ${course['Course Code']}-${course['Section']}`)
+      } else {
+        successCount++
+        addLog(`✅ Registered: Student #${studentNum} → ${course['Course Code']}-${course['Section']} (Seat Left: ${currentData['Seat Left'] - 1})`)
+      }
     }
+
+    simulatorState.stats.registeredStudents = studentNum
+    simulatorState.stats.totalRegistrations += successCount
+    simulatorState.stats.failedRegistrations += failedCount
+  } finally {
+    isRegistering = false
   }
-
-  simulatorState.stats.registeredStudents = studentNum
-  simulatorState.stats.totalRegistrations += successCount
-  simulatorState.stats.failedRegistrations += failedCount
 }
 
 export function stopSimulator() {
