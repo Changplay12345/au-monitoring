@@ -70,12 +70,6 @@ const videos = [
   { title: 'Study Plan Generator', src: '/Studyplan.mp4' },
 ]
 
-const systemRequirements = [
-  { icon: <Monitor className="w-5 h-5" />, label: 'OS', value: 'Windows 10/11 (64-bit)' },
-  { icon: <Cpu className="w-5 h-5" />, label: 'Processor', value: 'Intel Core i3 or equivalent' },
-  { icon: <HardDrive className="w-5 h-5" />, label: 'Storage', value: '200 MB available space' },
-  { icon: <Sparkles className="w-5 h-5" />, label: 'RAM', value: '4 GB minimum' },
-]
 
 export default function TQFDesktopPage() {
   const [downloadingVersion, setDownloadingVersion] = useState<string | null>(null)
@@ -130,29 +124,6 @@ export default function TQFDesktopPage() {
                   <Download className="w-6 h-6" />
                   Download Latest ({versions[0].version})
                 </button>
-              </div>
-
-              {/* Right - System Requirements Card */}
-              <div className="w-full lg:w-auto">
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-300" />
-                    System Requirements
-                  </h3>
-                  <div className="space-y-4">
-                    {systemRequirements.map((req, index) => (
-                      <div key={index} className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                          {req.icon}
-                        </div>
-                        <div>
-                          <p className="text-sm text-red-200">{req.label}</p>
-                          <p className="font-medium">{req.value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </div>

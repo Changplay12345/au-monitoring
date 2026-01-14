@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { GCPLayout } from '@/components/GCPLayout'
 import { RoleGuard } from '@/components/RoleGuard'
 import { getAllUsers, updateUserRole, deleteUser, updateUserInfo } from '@/lib/auth'
-import { Users, Shield, Edit, Trash2, Save, X, User as UserIcon, Mail } from 'lucide-react'
+import { usePageVisibility, PAGE_ID_MAP } from '@/contexts/PageVisibilityContext'
+import { Users, Shield, Edit, Trash2, Save, X, User as UserIcon, Mail, Eye, EyeOff, Lock, ChevronDown, ChevronUp, Home, Laptop, Files, Download, Brain, Folder, Database, Code2 } from 'lucide-react'
 
 interface UserData {
   id: string
@@ -19,6 +20,20 @@ export default function AdminPanelPage() {
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<UserData>>({})
+  const [showPageControls, setShowPageControls] = useState(false)
+  const { hiddenPages, fullyHiddenPages, togglePageVisibility, toggleFullyHidden } = usePageVisibility()
+
+  // All pages that can be hidden/shown
+  const allPages = [
+    { id: 'Home Page', icon: <Home className="w-5 h-5" />, path: '/home' },
+    { id: 'Project Overview', icon: <Laptop className="w-5 h-5" />, path: '/project-overview' },
+    { id: 'Documentation', icon: <Files className="w-5 h-5" />, path: '/documentation' },
+    { id: 'TQF Master 2.0 Desktop', icon: <Download className="w-5 h-5" />, path: '/tqf-desktop' },
+    { id: 'Course Monitoring', icon: <Brain className="w-5 h-5" />, path: '/course-monitoring' },
+    { id: 'TQF Master 2.0', icon: <Folder className="w-5 h-5" />, path: '/tqf-master' },
+    { id: 'Registration Simulator', icon: <Database className="w-5 h-5" />, path: '/registration-simulator' },
+    { id: 'APIs & Services', icon: <Code2 className="w-5 h-5" />, path: '/apis-services' },
+  ]
 
   useEffect(() => {
     loadUsers()
@@ -139,6 +154,119 @@ export default function AdminPanelPage() {
                   </p>
                 </div>
                 <UserIcon className="w-8 h-8 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Page Visibility Control - Collapsible Section */}
+          <div className="bg-white rounded-lg shadow mb-8 overflow-hidden">
+            <button
+              onClick={() => setShowPageControls(!showPageControls)}
+              className="w-full px-6 py-4 border-b border-gray-200 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="w-5 h-5 text-orange-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Page Visibility Control</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-600 rounded">
+                  {hiddenPages.size} Hidden
+                </span>
+              </div>
+              {showPageControls ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </button>
+            
+            {/* Animated content */}
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              showPageControls ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+            }`}>
+              <div className="p-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  Hide pages from regular users. Hidden pages will be removed from the sidebar and users currently viewing them will be kicked out immediately.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {allPages.map((page) => {
+                    const isHidden = hiddenPages.has(page.id)
+                    const isFullyHidden = fullyHiddenPages.has(page.id)
+                    return (
+                      <div
+                        key={page.id}
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all duration-300 ${
+                          isFullyHidden
+                            ? 'border-red-300 bg-red-50'
+                            : isHidden 
+                            ? 'border-orange-300 bg-orange-50' 
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={isFullyHidden ? 'text-red-600' : isHidden ? 'text-orange-600' : 'text-gray-600'}>
+                            {page.icon}
+                          </span>
+                          <div>
+                            <p className={`font-medium ${isFullyHidden ? 'text-red-700' : isHidden ? 'text-orange-700' : 'text-gray-900'}`}>
+                              {page.id}
+                            </p>
+                            <p className="text-xs text-gray-500">{page.path}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => togglePageVisibility(page.id)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
+                              isHidden
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            }`}
+                          >
+                            {isHidden ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                Show
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                Hide
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => toggleFullyHidden(page.id)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 ${
+                              isFullyHidden
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
+                            title="Hide from everyone including admins"
+                          >
+                            {isFullyHidden ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                Unlock
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-3.5 h-3.5" />
+                                Lock All
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Warning:</strong> Hiding a page will immediately kick out any users currently viewing it and redirect them to the home page.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

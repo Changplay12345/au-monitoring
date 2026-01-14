@@ -24,10 +24,13 @@ import {
   Files,
   Laptop,
   Home,
-  Database
+  Database,
+  Lock,
+  EyeOff
 } from 'lucide-react'
 import { cn } from './utils'
 import { useAuth } from '@/hooks/useAuth'
+import { usePageVisibility } from '@/contexts/PageVisibilityContext'
 
 interface SidebarItem {
   icon: React.ReactNode
@@ -49,6 +52,8 @@ interface GCPSidebarProps {
 
 export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', onItemClick, onNavigate }: GCPSidebarProps) {
   const { user } = useAuth()
+  const { hiddenPages, fullyHiddenPages, isAdmin } = usePageVisibility()
+  
   // Navigation URLs for all pages
   const pageUrls: Record<string, string> = {
     'Home Page': '/home',
@@ -130,20 +135,36 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
         <div className="flex-1 overflow-y-auto">
           {/* Top navigation */}
           <nav className="py-2">
-            {filteredTopItems.map((item) => (
-              <button
-                key={item.label}
-                onClick={() => handleItemClick(item)}
-                className={cn(
-                  "w-full flex items-center gap-4 px-6 py-3 hover:bg-gray-100 transition-colors text-left",
-                  activeItem === item.label && "bg-blue-50"
-                )}
-              >
-                <span className="text-gray-600">{item.icon}</span>
-                <span className="flex-1 text-sm text-gray-700">{item.label}</span>
-                {item.hasChevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
-              </button>
-            ))}
+            {filteredTopItems.map((item) => {
+              const isHidden = hiddenPages.has(item.label)
+              const isFullyHidden = fullyHiddenPages.has(item.label)
+              // Fully hidden = hide from everyone including admin
+              if (isFullyHidden) return null
+              // Regular hidden = hide from non-admins only
+              if (isHidden && !isAdmin) return null
+              
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => handleItemClick(item)}
+                  className={cn(
+                    "w-full flex items-center gap-4 px-6 py-3 hover:bg-gray-100 transition-colors text-left",
+                    activeItem === item.label && "bg-blue-50",
+                    isHidden && "opacity-60"
+                  )}
+                >
+                  <span className="text-gray-600">{item.icon}</span>
+                  <span className="flex-1 text-sm text-gray-700">{item.label}</span>
+                  {isHidden && isAdmin && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-600 rounded flex items-center gap-1">
+                      <EyeOff className="w-3 h-3" />
+                      Hidden
+                    </span>
+                  )}
+                  {item.hasChevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
+                </button>
+              )
+            })}
           </nav>
 
           <div className="border-t border-[#e0e0e0] mx-4" />
@@ -157,38 +178,54 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
           <div className="pb-4">
             <h3 className="text-sm font-medium text-gray-800 px-6 mb-2">Feature</h3>
             <nav>
-              {filteredProductItems.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => handleItemClick(item)}
-                  className={cn(
-                    "w-full flex items-center gap-4 px-6 py-3 hover:bg-gray-100 transition-colors text-left",
-                    item.label === activeItem && "bg-[#e8f0fe] border-l-4 border-blue-500"
-                  )}
-                >
-                  <span className={cn(
-                    "text-gray-600",
-                    item.label === activeItem && "text-blue-600"
-                  )}>
-                    {item.icon}
-                  </span>
-                  <span className={cn(
-                    "flex-1 text-sm",
-                    item.label === activeItem ? "text-blue-600 font-medium" : "text-gray-700"
-                  )}>
-                    {item.label}
-                  </span>
-                  {item.adminOnly && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded">
-                      Admin
+              {filteredProductItems.map((item) => {
+                const isHidden = hiddenPages.has(item.label)
+                const isFullyHidden = fullyHiddenPages.has(item.label)
+                // Fully hidden = hide from everyone including admin
+                if (isFullyHidden) return null
+                // Regular hidden = hide from non-admins only
+                if (isHidden && !isAdmin) return null
+                
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => handleItemClick(item)}
+                    className={cn(
+                      "w-full flex items-center gap-4 px-6 py-3 hover:bg-gray-100 transition-colors text-left",
+                      item.label === activeItem && "bg-[#e8f0fe] border-l-4 border-blue-500",
+                      isHidden && "opacity-60"
+                    )}
+                  >
+                    <span className={cn(
+                      "text-gray-600",
+                      item.label === activeItem && "text-blue-600"
+                    )}>
+                      {item.icon}
                     </span>
-                  )}
-                  {item.hasStar && (
-                    <Star className="w-4 h-4 text-gray-300 hover:text-yellow-400 transition-colors" />
-                  )}
-                  {item.hasChevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
-                </button>
-              ))}
+                    <span className={cn(
+                      "flex-1 text-sm",
+                      item.label === activeItem ? "text-blue-600 font-medium" : "text-gray-700"
+                    )}>
+                      {item.label}
+                    </span>
+                    {isHidden && isAdmin && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-600 rounded flex items-center gap-1">
+                        <EyeOff className="w-3 h-3" />
+                        Hidden
+                      </span>
+                    )}
+                    {item.adminOnly && !isHidden && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded">
+                        Admin
+                      </span>
+                    )}
+                    {item.hasStar && (
+                      <Star className="w-4 h-4 text-gray-300 hover:text-yellow-400 transition-colors" />
+                    )}
+                    {item.hasChevron && <ChevronRight className="w-4 h-4 text-gray-400" />}
+                  </button>
+                )
+              })}
             </nav>
           </div>
         </div>

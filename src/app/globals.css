@@ -16,6 +16,22 @@
   animation: float-up 1.5s ease-out forwards;
 }
 
+/* Fade in up animation for carousel content */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
 :root {
   --background: #f6f7f9;
   --foreground: #1f2937;
