@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { CSVCourse } from '../CourseBlock'
 import { cn } from '@/lib/utils'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
+
+// Centralized glow configuration - Change this number to adjust all glow sizes
+const GLOW_SIZE = 'sm' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
 interface SectionBlockProps {
   section: CSVCourse
@@ -51,12 +54,30 @@ export function SectionBlock({
   const colors = getBlockColors(section.seatLeft, section.seatLimit)
   const [isGlowing, setIsGlowing] = useState(false)
   
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Handle seat change animation - trigger glow
   const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    
     if (direction) {
       setIsGlowing(true)
+      // Force clear after animation duration
+      timeoutRef.current = setTimeout(() => setIsGlowing(false), 400)
     } else {
       setIsGlowing(false)
+    }
+  }, [])
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
     }
   }, [])
   
@@ -74,7 +95,7 @@ export function SectionBlock({
         colors.border,
         isHovered && 'ring-2 ring-red-500 ring-offset-1 shadow-lg z-50 scale-[1.02]',
         !isHovered && 'hover:shadow-md hover:z-40',
-        isGlowing && 'shadow-md',
+        isGlowing && `shadow-${GLOW_SIZE}`,
         isGlowing && section.seatLeft / section.seatLimit >= 0.5 && 'shadow-emerald-400/60',
         isGlowing && section.seatLeft / section.seatLimit >= 0.25 && section.seatLeft / section.seatLimit < 0.5 && 'shadow-amber-400/60',
         isGlowing && section.seatLeft / section.seatLimit > 0 && section.seatLeft / section.seatLimit < 0.25 && 'shadow-orange-400/60',

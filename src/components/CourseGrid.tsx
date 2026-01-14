@@ -72,6 +72,9 @@ function groupOverlappingCourses(courses: CSVCourse[]): CourseGroup[] {
   return groups
 }
 
+// Centralized glow configuration - Change this number to adjust all glow sizes
+const GLOW_SIZE = 'lg' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
+
 export function CourseGrid() {
   const [glowingCourses, setGlowingCourses] = useState<Set<string>>(new Set())
   
@@ -618,7 +621,7 @@ export function CourseGrid() {
                               course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-50 border-orange-300" :
                               course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-50 border-amber-300" :
                               "bg-emerald-50 border-emerald-300",
-                              isGlowing && "shadow-md",
+                              isGlowing && `shadow-${GLOW_SIZE}`,
                               isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
                             )}
                           >
