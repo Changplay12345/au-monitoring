@@ -1,0 +1,727 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { useCourses } from '@/hooks/useCourses'
+import { DAYS } from '@/lib/types'
+import { cn } from '@/lib/utils'
+import { RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { CourseBlock, CSVCourse } from './CourseBlock'
+import { loadCoursesFromCSV, groupCoursesByDay } from '@/lib/courseData'
+import { SwimlaneSchedule } from './SwimlaneSchedule'
+
+// Time axis configuration
+const START_MIN = 7 * 60 + 30  // 07:30
+const STEP_MIN = 90            // 1.5 hours
+const CELLS = 9                // 07:30 to 21:00 (remove 21:00 tick)
+const END_MIN = START_MIN + CELLS * STEP_MIN  // 21:00
+const SPAN_MIN = END_MIN - START_MIN
+
+// Convert time string to minutes
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+// Group overlapping courses (courses that overlap in ANY way, not just same time)
+interface CourseGroup {
+  courses: CSVCourse[]
+  startMin: number
+  endMin: number
+}
+
+function groupOverlappingCourses(courses: CSVCourse[]): CourseGroup[] {
+  if (courses.length === 0) return []
+  
+  // Sort by start time
+  const sorted = [...courses].sort((a, b) => 
+    timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+  )
+  
+  const groups: CourseGroup[] = []
+  let currentGroup: CourseGroup = {
+    courses: [sorted[0]],
+    startMin: timeToMinutes(sorted[0].startTime),
+    endMin: timeToMinutes(sorted[0].endTime)
+  }
+  
+  for (let i = 1; i < sorted.length; i++) {
+    const course = sorted[i]
+    const courseStart = timeToMinutes(course.startTime)
+    const courseEnd = timeToMinutes(course.endTime)
+    
+    // Check if this course overlaps with current group
+    if (courseStart < currentGroup.endMin) {
+      // Overlaps - add to current group and extend end time if needed
+      currentGroup.courses.push(course)
+      currentGroup.endMin = Math.max(currentGroup.endMin, courseEnd)
+    } else {
+      // No overlap - save current group and start new one
+      groups.push(currentGroup)
+      currentGroup = {
+        courses: [course],
+        startMin: courseStart,
+        endMin: courseEnd
+      }
+    }
+  }
+  
+  // Don't forget the last group
+  groups.push(currentGroup)
+  
+  return groups
+}
+
+export function CourseGrid() {
+  const {
+    groupedByDay,
+    isLoading,
+    filters,
+    setSearch,
+    setSession,
+    setActiveDay,
+    refresh,
+  } = useCourses()
+
+  // Check if any courses exist
+  const hasAnyCourses = Object.values(groupedByDay).some(groups => groups.length > 0)
+
+  // Timetable_Move function state
+  const [isTimetableHidden, setIsTimetableHidden] = useState(false)
+  const [slideDistance, setSlideDistance] = useState(100) // 0-100 scale, 100 = off page
+
+  // Selected course group for detail panel (Option C)
+  const [selectedGroup, setSelectedGroup] = useState<CSVCourse[] | null>(null)
+
+  // Search dropdown state
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // Advanced filter state
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
+  const [advancedFilters, setAdvancedFilters] = useState({
+    prefix: '',
+    seatMin: '',
+    seatMax: '',
+    timeStart: '',
+    timeEnd: '',
+    section: '',
+    instructor: '',
+  })
+  const filterRef = useRef<HTMLDivElement>(null)
+
+  // Prevent body scroll when popup is open
+  useEffect(() => {
+    if (selectedGroup) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [selectedGroup])
+
+  // Popup width in pixels for edge-to-edge snapping
+  const POPUP_WIDTH = 500
+
+  // Handle course block click - show detail panel
+  const handleCourseClick = (group: CSVCourse[]) => {
+    setSelectedGroup(group)
+    setIsTimetableHidden(true)
+  }
+
+  // Close detail panel
+  const closeDetailPanel = () => {
+    setSelectedGroup(null)
+    setIsTimetableHidden(false)
+  }
+
+  // Group courses by time for detail panel
+  const groupByTime = (courses: CSVCourse[]) => {
+    const timeGroups: Map<string, CSVCourse[]> = new Map()
+    courses.forEach(course => {
+      const key = `${course.startTime} - ${course.endTime}`
+      if (!timeGroups.has(key)) {
+        timeGroups.set(key, [])
+      }
+      timeGroups.get(key)!.push(course)
+    })
+    // Sort by start time
+    return Array.from(timeGroups.entries()).sort((a, b) => {
+      const [aStart] = a[0].split(' - ')
+      const [bStart] = b[0].split(' - ')
+      return aStart.localeCompare(bStart)
+    })
+  }
+
+  // CSV courses state
+  const [coursesByDay, setCoursesByDay] = useState<Record<string, CourseGroup[]>>({})
+
+  // Load courses from CSV on mount
+  useEffect(() => {
+    loadCoursesFromCSV().then(courses => {
+      const grouped = groupCoursesByDay(courses)
+      const groupedByDay: Record<string, CourseGroup[]> = {}
+      
+      Object.entries(grouped).forEach(([day, dayCourses]) => {
+        groupedByDay[day] = groupOverlappingCourses(dayCourses)
+      })
+      
+      setCoursesByDay(groupedByDay)
+    })
+  }, [])
+
+  // Get all courses for search suggestions (after coursesByDay is declared)
+  const allCourses = Object.values(coursesByDay).flatMap(groups => 
+    groups.flatMap(g => g.courses)
+  )
+
+  // Filter courses for search dropdown (smart search)
+  const searchResults = searchInput.trim() 
+    ? allCourses.filter(course => 
+        course.courseCode.toLowerCase().includes(searchInput.toLowerCase()) ||
+        course.courseTitle.toLowerCase().includes(searchInput.toLowerCase())
+      ).slice(0, 8) // Limit to 8 results
+    : []
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false)
+      }
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowAdvancedFilter(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Get unique filter options based on current filters (dynamic dependency)
+  const getFilteredCourses = () => {
+    return allCourses.filter(course => {
+      if (advancedFilters.prefix && course.prefix !== advancedFilters.prefix) return false
+      if (advancedFilters.section && course.section !== advancedFilters.section) return false
+      if (advancedFilters.instructor && course.instructor !== advancedFilters.instructor) return false
+      if (advancedFilters.seatMin && course.seatLeft < parseInt(advancedFilters.seatMin)) return false
+      if (advancedFilters.seatMax && course.seatLeft > parseInt(advancedFilters.seatMax)) return false
+      if (advancedFilters.timeStart) {
+        const filterStart = timeToMinutes(advancedFilters.timeStart)
+        const courseStart = timeToMinutes(course.startTime)
+        if (courseStart < filterStart) return false
+      }
+      if (advancedFilters.timeEnd) {
+        const filterEnd = timeToMinutes(advancedFilters.timeEnd)
+        const courseEnd = timeToMinutes(course.endTime)
+        if (courseEnd > filterEnd) return false
+      }
+      return true
+    })
+  }
+
+  // Get available options for each filter based on other selected filters
+  const getAvailableOptions = () => {
+    const filtered = getFilteredCourses()
+    return {
+      prefixes: [...new Set(allCourses.map(c => c.prefix))].filter(Boolean).sort(),
+      sections: [...new Set(filtered.map(c => c.section))].filter(Boolean).sort(),
+      instructors: [...new Set(filtered.map(c => c.instructor))].filter(Boolean).sort(),
+      times: [...new Set(filtered.flatMap(c => [c.startTime, c.endTime]))].filter(Boolean).sort(),
+    }
+  }
+
+  const availableOptions = getAvailableOptions()
+
+  // Apply advanced filters to search
+  const applyAdvancedFilters = () => {
+    setShowAdvancedFilter(false)
+  }
+
+  // Clear all advanced filters
+  const clearAdvancedFilters = () => {
+    setAdvancedFilters({
+      prefix: '',
+      seatMin: '',
+      seatMax: '',
+      timeStart: '',
+      timeEnd: '',
+      section: '',
+      instructor: '',
+    })
+  }
+
+  // Check if any advanced filter is active
+  const hasActiveFilters = Object.values(advancedFilters).some(v => v !== '')
+
+  // Handle search input change
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value)
+    setSearch(value)
+    setShowSearchDropdown(value.trim().length > 0)
+  }
+
+  // Handle search result click
+  const handleSearchResultClick = (course: CSVCourse) => {
+    setSearchInput(course.courseCode)
+    setSearch(course.courseCode)
+    setShowSearchDropdown(false)
+  }
+
+  // Get seat color for search results
+  const getSeatColor = (seatLeft: number, seatLimit: number) => {
+    if (seatLimit === 0) return 'bg-gray-400'
+    const ratio = seatLeft / seatLimit
+    if (ratio >= 0.5) return 'bg-emerald-500'
+    if (ratio >= 0.25) return 'bg-amber-500'
+    if (ratio > 0) return 'bg-orange-500'
+    return 'bg-red-500'
+  }
+
+  // Generate time ruler ticks
+  const ticks = Array.from({ length: CELLS + 1 }, (_, i) => {
+    const t = START_MIN + i * STEP_MIN
+    const h = String(Math.floor(t / 60)).padStart(2, '0')
+    const m = String(t % 60).padStart(2, '0')
+    const x = ((t - START_MIN) / SPAN_MIN) * 100
+    return { time: `${h}:${m}`, x, isLast: i === CELLS }
+  })
+
+  return (
+    <div className="max-w-[1000px] mx-auto px-4 py-6">
+      {/* Header with filters */}
+      <header className="flex justify-between items-center gap-3 mb-4 flex-wrap">
+        {/* Day tabs */}
+        <nav className="flex gap-1 border border-red-600 rounded-xl p-1 bg-white">
+          <button
+            onClick={() => setActiveDay('ALL')}
+            className={cn(
+              'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              filters.activeDay === 'ALL'
+                ? 'bg-red-600 text-white'
+                : 'text-red-600 hover:bg-red-50'
+            )}
+          >
+            ALL
+          </button>
+          {DAYS.map(day => (
+            <button
+              key={day}
+              onClick={() => setActiveDay(day)}
+              className={cn(
+                'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                filters.activeDay === day
+                  ? 'bg-red-600 text-white'
+                  : 'text-red-600 hover:bg-red-50'
+              )}
+            >
+              {day.slice(0, 1)}
+            </button>
+          ))}
+        </nav>
+
+        {/* Tools */}
+        <div className="flex gap-2 items-center">
+          {/* Search with dropdown and filter icon */}
+          <div className="relative" ref={searchRef}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+            <input
+              type="text"
+              placeholder="Search course code..."
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => searchInput.trim() && setShowSearchDropdown(true)}
+              className="pl-9 pr-10 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-[400px]"
+            />
+            {/* Filter icon at end of search input */}
+            <button
+              onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+              className={cn(
+                "absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 transition-colors",
+                hasActiveFilters ? "text-red-500" : "text-gray-400 hover:text-gray-600"
+              )}
+              title="Advanced Filters"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+            {/* Search dropdown results */}
+            {showSearchDropdown && searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                {searchResults.map((course, idx) => (
+                  <button
+                    key={`${course.courseCode}-${course.section}-${idx}`}
+                    onClick={() => handleSearchResultClick(course)}
+                    className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-semibold text-gray-800 text-sm">{course.courseCode}</span>
+                      <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
+                    </div>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-xs font-bold text-white",
+                      getSeatColor(course.seatLeft, course.seatLimit)
+                    )}>
+                      {course.seatLeft}/{course.seatLimit}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* No results message */}
+            {showSearchDropdown && searchInput.trim() && searchResults.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 text-center text-gray-500 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                No courses found
+              </div>
+            )}
+          </div>
+          <select
+            value={filters.session}
+            onChange={(e) => setSession(e.target.value as 'ALL' | 'Morning' | 'Afternoon')}
+            className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            <option value="ALL">Session: ALL</option>
+            <option value="Morning">Morning</option>
+            <option value="Afternoon">Afternoon</option>
+          </select>
+          <button
+            onClick={refresh}
+            disabled={isLoading}
+            className="px-3 py-2 border border-red-600 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+          </button>
+        </div>
+      </header>
+
+      {/* Swimlane View for individual days (Sunday-Saturday) */}
+      {filters.activeDay !== 'ALL' && (
+        <SwimlaneSchedule day={filters.activeDay as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'} />
+      )}
+
+      {/* Regular Timetable View - only show for ALL days */}
+      {filters.activeDay === 'ALL' && (
+      <div 
+        className="relative transition-all duration-500 ease-in-out"
+        style={{
+          transform: selectedGroup ? 'translateX(20%)' : 'translateX(0)',
+        }}
+      >
+        {/* Detail Panel - ABSOLUTE positioned, pops out from timetable left edge */}
+        <div 
+          className={cn(
+            "absolute top-0 bg-white border border-gray-200 rounded-l-2xl shadow-lg z-30 transition-all duration-500 ease-in-out overflow-hidden",
+            selectedGroup ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+          style={{
+            right: '100%',
+            marginRight: '16px',
+            width: selectedGroup ? `${POPUP_WIDTH}px` : '0px',
+          }}
+        >
+          {selectedGroup && (
+            <div className="flex flex-col max-h-[80vh]" style={{ width: `${POPUP_WIDTH}px` }}>
+              {/* Panel header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <h3 className="font-bold text-gray-800">Course Details</h3>
+                <button 
+                  onClick={closeDetailPanel}
+                  className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {groupByTime(selectedGroup).map(([timeSlot, courses]) => (
+                  <div key={timeSlot}>
+                    {/* Time header */}
+                    <div className="text-sm font-bold text-gray-600 mb-2 bg-gray-100 px-2 py-1 rounded">
+                      {timeSlot}
+                    </div>
+                    {/* Course cards - 2 column grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {courses.map((course, idx) => (
+                        <div 
+                          key={`${course.courseCode}-${idx}`}
+                          className={cn(
+                            "p-3 rounded-lg border-2",
+                            course.seatLeft === 0 ? "bg-red-50 border-red-300" :
+                            course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-50 border-orange-300" :
+                            course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-50 border-amber-300" :
+                            "bg-emerald-50 border-emerald-300"
+                          )}
+                        >
+                          <div className="flex justify-between items-start">
+                            <span className="font-bold text-gray-800">{course.courseCode}</span>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-xs font-bold text-white",
+                              course.seatLeft === 0 ? "bg-red-500" :
+                              course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
+                              course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
+                              "bg-emerald-500"
+                            )}>
+                              {course.seatLeft}/{course.seatLimit}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">{course.courseTitle}</p>
+                          <div className="text-xs text-gray-500 mt-2">
+                            <div>Section: {course.section}</div>
+                            <div>Instructor: {course.instructor}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Timetable content - wider to the right for more course name space */}
+        <div style={{ width: '120%' }}>
+          {/* Time ruler - outside the box */}
+          <div className="relative ml-[70px] h-5 mb-2">
+            {ticks.map((tick, i) => (
+              <div
+                key={i}
+                className="absolute top-0 -translate-x-1/2 text-xs text-gray-500 font-semibold"
+                style={{ left: `${tick.x}%` }}
+              >
+                {!tick.isLast && tick.time}
+                <div className="w-px h-3 bg-gray-200 mx-auto mt-1" />
+              </div>
+            ))}
+          </div>
+
+          {/* Time table box */}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
+            {/* Grid - Time table structure without courses */}
+            <div>
+              {DAYS.map((day, idx) => (
+                <div
+                  key={day}
+                  className={cn(
+                    'relative h-[72px]',
+                    idx > 0 && 'border-t border-gray-200'
+                  )}
+                >
+                  {/* Day label */}
+                  <div className="absolute left-0 top-0 bottom-0 w-[70px] flex items-center justify-center font-semibold text-gray-500 bg-white border-r border-gray-200">
+                    {day.slice(0, 3).toUpperCase()}
+                  </div>
+
+                  {/* Time slots grid */}
+                  <div 
+                    className="absolute left-[70px] right-0 top-0 bottom-0"
+                    style={{
+                      backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px)',
+                      backgroundSize: `${100 / CELLS}% 100%`,
+                    }}
+                  >
+                    {/* Course blocks for this day - filtered by search and advanced filters */}
+                    {coursesByDay[day]?.map((group, groupIdx) => {
+                      // Filter courses in group by search input AND advanced filters
+                      const filteredCourses = group.courses.filter(c => {
+                        // Text search filter
+                        if (searchInput.trim()) {
+                          const matchesSearch = c.courseCode.toLowerCase().includes(searchInput.toLowerCase()) ||
+                            c.courseTitle.toLowerCase().includes(searchInput.toLowerCase())
+                          if (!matchesSearch) return false
+                        }
+                        // Advanced filters
+                        if (advancedFilters.prefix && c.prefix !== advancedFilters.prefix) return false
+                        if (advancedFilters.section && c.section !== advancedFilters.section) return false
+                        if (advancedFilters.instructor && c.instructor !== advancedFilters.instructor) return false
+                        if (advancedFilters.seatMin && c.seatLeft < parseInt(advancedFilters.seatMin)) return false
+                        if (advancedFilters.seatMax && c.seatLeft > parseInt(advancedFilters.seatMax)) return false
+                        if (advancedFilters.timeStart) {
+                          const filterStart = timeToMinutes(advancedFilters.timeStart)
+                          const courseStart = timeToMinutes(c.startTime)
+                          if (courseStart < filterStart) return false
+                        }
+                        if (advancedFilters.timeEnd) {
+                          const filterEnd = timeToMinutes(advancedFilters.timeEnd)
+                          const courseEnd = timeToMinutes(c.endTime)
+                          if (courseEnd > filterEnd) return false
+                        }
+                        return true
+                      })
+                      
+                      // Skip if no courses match the filter
+                      if (filteredCourses.length === 0) return null
+                      
+                      // Use first filtered course as the display course
+                      const displayCourse = filteredCourses[0]
+                      
+                      return (
+                        <CourseBlock
+                          key={`${day}-group-${groupIdx}`}
+                          course={displayCourse}
+                          startMin={group.startMin}
+                          spanMin={group.endMin - group.startMin}
+                          groupStartMin={START_MIN}
+                          groupSpanMin={SPAN_MIN}
+                          stackTotal={filteredCourses.length}
+                          onClick={() => handleCourseClick(filteredCourses)}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Empty state */}
+      {!hasAnyCourses && !isLoading && (
+        <p className="text-center text-gray-400 mt-6">No classes found.</p>
+      )}
+
+      {/* Advanced Filter Popup - Fixed position floating modal */}
+      {showAdvancedFilter && (
+        <>
+          {/* Backdrop with fade animation */}
+          <div 
+            className="fixed inset-0 bg-black/30 z-[100] animate-in fade-in duration-200 backdrop-blur-sm"
+            onClick={() => setShowAdvancedFilter(false)}
+          />
+          {/* Modal with scale + fade animation */}
+          <div 
+            ref={filterRef}
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] bg-white border border-gray-200 rounded-2xl shadow-2xl z-[101] overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-semibold text-gray-800 text-sm">Advanced Filters</h3>
+              <button onClick={() => setShowAdvancedFilter(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Filter fields */}
+            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Prefix */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Prefix</label>
+                <select
+                  value={advancedFilters.prefix}
+                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, prefix: e.target.value, section: '', instructor: '' }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">All Prefixes</option>
+                  {availableOptions.prefixes.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seat Range */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Seats Available</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={advancedFilters.seatMin}
+                    onChange={(e) => setAdvancedFilters(prev => ({ ...prev, seatMin: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                    min="0"
+                  />
+                  <span className="text-gray-400">-</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={advancedFilters.seatMax}
+                    onChange={(e) => setAdvancedFilters(prev => ({ ...prev, seatMax: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              {/* Time Range */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Time Range</label>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={advancedFilters.timeStart}
+                    onChange={(e) => setAdvancedFilters(prev => ({ ...prev, timeStart: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="">Start</option>
+                    {availableOptions.times.map(t => (
+                      <option key={`start-${t}`} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <span className="text-gray-400">-</span>
+                  <select
+                    value={advancedFilters.timeEnd}
+                    onChange={(e) => setAdvancedFilters(prev => ({ ...prev, timeEnd: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="">End</option>
+                    {availableOptions.times.map(t => (
+                      <option key={`end-${t}`} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Section */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Section</label>
+                <select
+                  value={advancedFilters.section}
+                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, section: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">All Sections</option>
+                  {availableOptions.sections.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Instructor */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Instructor</label>
+                <select
+                  value={advancedFilters.instructor}
+                  onChange={(e) => setAdvancedFilters(prev => ({ ...prev, instructor: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">All Instructors</option>
+                  {availableOptions.instructors.map(i => (
+                    <option key={i} value={i}>{i}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <button
+                onClick={clearAdvancedFilters}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={applyAdvancedFilters}
+                className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

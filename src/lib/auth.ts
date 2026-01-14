@@ -1,0 +1,93 @@
+import { supabase } from './supabase'
+import { User } from './types'
+import bcrypt from 'bcryptjs'
+
+const USERS_TABLE = 'users'
+const USERS_ID_COL = 'id'
+const USERS_USERNAME_COL = 'username'
+const USERS_EMAIL_COL = 'email'
+const USERS_PASSWORD_COL = 'password'
+const USERS_NAME_COL = 'name'
+
+// Find user by username
+export async function findUserByUsername(username: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from(USERS_TABLE)
+    .select(`${USERS_ID_COL}, ${USERS_USERNAME_COL}, ${USERS_EMAIL_COL}, ${USERS_PASSWORD_COL}, ${USERS_NAME_COL}`)
+    .eq(USERS_USERNAME_COL, username)
+    .limit(1)
+    .single()
+
+  if (error || !data) return null
+  return data
+}
+
+// Password check - supports both bcrypt hashed and plain text passwords
+export async function passwordMatches(input: string, stored: string): Promise<boolean> {
+  // Check if stored password is bcrypt hashed (starts with $2a$, $2b$, or $2y$)
+  if (stored.startsWith('$2')) {
+    return await bcrypt.compare(input, stored)
+  }
+  // Fallback to plain text comparison for legacy passwords
+  return input === stored
+}
+
+// Login user
+export async function loginUser(username: string, password: string): Promise<User> {
+  const row = await findUserByUsername(username)
+  
+  if (!row) {
+    throw new Error('User not found')
+  }
+
+  const storedPassword = String(row[USERS_PASSWORD_COL] || '')
+  
+  const isValid = await passwordMatches(password, storedPassword)
+  if (!isValid) {
+    throw new Error('Invalid password')
+  }
+
+  return {
+    id: String(row[USERS_ID_COL]),
+    username: String(row[USERS_USERNAME_COL]),
+    email: String(row[USERS_EMAIL_COL]),
+    name: row[USERS_NAME_COL] ? String(row[USERS_NAME_COL]) : null,
+  }
+}
+
+// Session storage keys
+const SESSION_KEY = 'au_monitoring_user'
+
+// Store user in session (client-side)
+export function storeUserSession(user: User): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  }
+}
+
+// Get user from session (client-side)
+export function getUserSession(): User | null {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(SESSION_KEY)
+    if (stored) {
+      try {
+        return JSON.parse(stored) as User
+      } catch {
+        return null
+      }
+    }
+  }
+  return null
+}
+
+// Clear user session (client-side)
+export function clearUserSession(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(SESSION_KEY)
+  }
+}
+
+// Check if user is authenticated
+export function isAuthenticated(): boolean {
+  return getUserSession() !== null
+}
