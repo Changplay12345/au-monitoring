@@ -518,7 +518,7 @@ export function CourseGrid() {
                         <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
                       </div>
                       <span className={cn(
-                        "px-2 py-0.5 rounded text-xs font-bold text-white font-mono tabular-nums",
+                        "px-2 py-0.5 rounded text-xs font-bold text-white",
                         getSeatColor(course.seatLeft, course.seatLimit)
                       )}>
                         <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleSearchGlow(courseId, dir)} />/{course.seatLimit}
@@ -660,7 +660,7 @@ export function CourseGrid() {
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-gray-800">{course.courseCode}</span>
                               <span className={cn(
-                                "px-2 py-0.5 rounded text-xs font-bold text-white font-mono tabular-nums",
+                                "px-2 py-0.5 rounded text-xs font-bold text-white",
                                 course.seatLeft === 0 ? "bg-red-500" :
                                 course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
                                 course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
