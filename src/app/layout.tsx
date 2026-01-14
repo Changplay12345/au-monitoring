@@ -25,8 +25,8 @@ export const metadata: Metadata = {
   title: "AU-Monitoring - Course Monitoring",
   description: "Assumption University Student Registration & Monitoring Platform",
   icons: {
-    icon: "/au-monitoring-logo2.png",
-    apple: "/au-monitoring-logo2.png",
+    icon: "/au-monitor-big.png",
+    apple: "/au-monitor-big.png",
   },
 };
 

@@ -117,9 +117,7 @@ export function ProjectOverview() {
       ],
       icon: <Globe className="w-8 h-8" />,
       features: [
-        "Real-time data visualization",
-        "Customizable dashboard widgets",
-        "Automated reporting system",
+        "Real-time data visualization", 
         "Multi-user collaboration tools"
       ]
     },
@@ -136,9 +134,7 @@ export function ProjectOverview() {
       icon: <Code className="w-8 h-8" />,
       features: [
         "Automated study plan generation",
-        "Curriculum alignment with TQF standards",
-        "Progress tracking and analytics",
-        "Export capabilities for multiple formats"
+        "Quick customization options for studyplan"
       ]
     },
     {
@@ -153,10 +149,8 @@ export function ProjectOverview() {
       ],
       icon: <HardDrive className="w-8 h-8" />,
       features: [
-        "High-performance servers for data processing",
-        "IoT sensors for real-time monitoring",
-        "Network infrastructure for seamless connectivity",
-        "Storage solutions for large-scale data management"
+        "Energy saving",
+        "Server health monitoring",
       ]
     }
   ]

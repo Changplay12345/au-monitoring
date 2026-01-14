@@ -20,7 +20,7 @@ const universityAds: UniversityAd[] = [
     subtitle: "Web Platform",
     description: "A comprehensive web-based platform providing real-time course monitoring, analytics, and management capabilities.",
     image: "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&h=600&fit=crop",
-    ctaText: "Learn More",
+    ctaText: "Try Now",
     ctaLink: "/course-monitoring"
   },
   {
@@ -28,7 +28,7 @@ const universityAds: UniversityAd[] = [
     title: "TQF Master 2.0",
     subtitle: "Desktop Application",
     description: "Intelligent software solution designed to streamline academic planning and curriculum management.",
-    image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=600&fit=crop",
+    image: "/tqf showcase.png",
     ctaText: "Try Now",
     ctaLink: "/tqf-master"
   },

@@ -33,7 +33,7 @@ export function HomeNavigation() {
       icon: <Laptop className="w-6 h-6" />, 
       label: 'Project Overview', 
       href: '/project-overview',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=250&fit=crop',
+      image: '/project-overview.png',
       description: 'Explore our comprehensive project documentation and objectives'
     },
     { 
@@ -54,23 +54,17 @@ export function HomeNavigation() {
       icon: <Brain className="w-6 h-6" />, 
       label: 'Course Monitoring', 
       href: '/course-monitoring',
-      image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=250&fit=crop',
+      image: 'course_monitor.png',
       description: 'Monitor and manage academic courses efficiently'
     },
     { 
       icon: <Folder className="w-6 h-6" />, 
       label: 'TQF Master 2.0', 
       href: '/tqf-master',
-      image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=250&fit=crop',
+      image: 'Tqf first.png',
       description: 'Access the web-based TQF Master 2.0 platform'
     },
-    { 
-      icon: <Code2 className="w-6 h-6" />, 
-      label: 'APIs & Services', 
-      href: '/apis-services',
-      image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=250&fit=crop',
-      description: 'Explore our APIs and integration services'
-    }
+    
   ]
 
   // Intersection observer for fade-in animations
