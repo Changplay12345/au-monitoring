@@ -1,16 +1,48 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { usePageVisibility } from '@/contexts/PageVisibilityContext'
 import { Lock, AlertTriangle } from 'lucide-react'
 
 export function LockedPagePopup() {
   const { showLockedPopup, lockedPageName, dismissLockedPopup } = usePageVisibility()
+  const [isClosing, setIsClosing] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
 
-  if (!showLockedPopup) return null
+  // Handle opening animation
+  useEffect(() => {
+    if (showLockedPopup) {
+      setIsVisible(true)
+      setIsClosing(false)
+    }
+  }, [showLockedPopup])
+
+  // Auto-dismiss after redirect (when pathname changes)
+  useEffect(() => {
+    if (showLockedPopup) {
+      // Start closing animation after 1.8 seconds (before redirect at 2s)
+      const closeTimer = setTimeout(() => {
+        setIsClosing(true)
+        // Actually dismiss after animation completes
+        setTimeout(() => {
+          setIsVisible(false)
+          dismissLockedPopup()
+        }, 300)
+      }, 1800)
+
+      return () => clearTimeout(closeTimer)
+    }
+  }, [showLockedPopup, dismissLockedPopup])
+
+  if (!isVisible) return null
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-fadeInUp">
+    <div className={`fixed inset-0 z-[200] flex items-center justify-center transition-all duration-300 ${
+      isClosing ? 'bg-black/0 backdrop-blur-none' : 'bg-black/50 backdrop-blur-sm'
+    }`}>
+      <div className={`bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all duration-300 ${
+        isClosing ? 'scale-95 opacity-0 translate-y-4' : 'scale-100 opacity-100 translate-y-0 animate-fadeInUp'
+      }`}>
         {/* Header */}
         <div className="bg-gradient-to-r from-red-600 to-red-500 px-6 py-8 text-center">
           <div className="w-20 h-20 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center">

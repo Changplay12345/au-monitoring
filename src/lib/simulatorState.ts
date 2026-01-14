@@ -19,12 +19,14 @@ interface SimulatorState {
     studentsPerMinute: number
   }
   logs: string[]
+  activeStudents: Set<number>
 }
 
 // Use global to persist across hot reloads in dev mode
 declare global {
   var __simulatorState: SimulatorState | undefined
-  var __simulationInterval: NodeJS.Timeout | null | undefined
+  var __simulationTimeout: NodeJS.Timeout | null | undefined
+  var __studentTimeouts: Map<number, NodeJS.Timeout> | undefined
 }
 
 // In-memory state (persists as long as server is running)
@@ -44,25 +46,35 @@ const defaultState: SimulatorState = {
     studentsPerMinute: 20,
   },
   logs: [],
+  activeStudents: new Set(),
 }
 
 // Initialize or get existing state
 if (!global.__simulatorState) {
-  global.__simulatorState = { ...defaultState }
+  global.__simulatorState = { ...defaultState, activeStudents: new Set() }
 }
-if (global.__simulationInterval === undefined) {
-  global.__simulationInterval = null
+if (global.__simulationTimeout === undefined) {
+  global.__simulationTimeout = null
+}
+if (global.__studentTimeouts === undefined) {
+  global.__studentTimeouts = new Map()
 }
 
 const simulatorState = global.__simulatorState
 
-export function getSimulatorState(): SimulatorState {
+export function getSimulatorState() {
   // Update elapsed time if running
   if (simulatorState.isRunning && simulatorState.stats.startTime) {
     const start = new Date(simulatorState.stats.startTime).getTime()
     simulatorState.stats.elapsedTime = Math.floor((Date.now() - start) / 1000)
   }
-  return { ...simulatorState }
+  return { 
+    isRunning: simulatorState.isRunning,
+    sessionId: simulatorState.sessionId,
+    stats: { ...simulatorState.stats },
+    config: { ...simulatorState.config },
+    logs: [...simulatorState.logs],
+  }
 }
 
 export function addLog(message: string) {
@@ -71,13 +83,14 @@ export function addLog(message: string) {
 }
 
 export async function startSimulator(config: SimulatorState['config']): Promise<string> {
+  // If already running, stop first
   if (simulatorState.isRunning) {
-    return simulatorState.sessionId || ''
+    stopSimulator()
   }
 
   const sessionId = `sim_${Date.now()}`
   
-  // Update state properties directly instead of reassigning
+  // Reset state
   simulatorState.isRunning = true
   simulatorState.sessionId = sessionId
   simulatorState.stats = {
@@ -89,45 +102,44 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
   }
   simulatorState.config = config
   simulatorState.logs = []
+  simulatorState.activeStudents = new Set()
 
-  addLog(`🚀 Starting simulation: ${config.totalStudents} students, ${config.coursesPerStudent} courses each, ${config.studentsPerMinute} students/min`)
+  addLog(`🚀 Starting parallel simulation: ${config.totalStudents} students, ${config.coursesPerStudent} courses each, ${config.studentsPerMinute} students/min`)
 
-  // Start the simulation loop
-  const intervalMs = (60 / config.studentsPerMinute) * 1000
+  // Calculate timing for parallel execution
+  // Students per minute determines how many students START their registration per minute
+  // Each student registers their courses in parallel (not sequentially)
   
-  global.__simulationInterval = setInterval(async () => {
-    if (!simulatorState.isRunning) {
-      if (global.__simulationInterval) {
-        clearInterval(global.__simulationInterval)
-        global.__simulationInterval = null
+  const totalDurationMs = (config.totalStudents / config.studentsPerMinute) * 60 * 1000
+  
+  // Schedule all students with distributed start times
+  for (let i = 1; i <= config.totalStudents; i++) {
+    // Calculate when this student should start registering
+    // Add some randomness for realistic distribution (±20% variance)
+    const baseDelay = ((i - 1) / config.studentsPerMinute) * 60 * 1000
+    const variance = (Math.random() - 0.5) * 0.4 * (60000 / config.studentsPerMinute)
+    const startDelay = Math.max(0, baseDelay + variance)
+    
+    const timeout = setTimeout(() => {
+      if (simulatorState.isRunning) {
+        registerStudentParallel(i)
       }
-      return
-    }
-
-    if (simulatorState.stats.registeredStudents >= config.totalStudents) {
-      addLog('🎉 Simulation completed!')
-      stopSimulator()
-      return
-    }
-
-    // Register a student
-    await registerStudent()
-  }, intervalMs)
+    }, startDelay)
+    
+    global.__studentTimeouts?.set(i, timeout)
+  }
 
   return sessionId
 }
 
-// Track if a registration is in progress to prevent overlapping calls
-let isRegistering = false
-
-async function registerStudent() {
-  // Prevent overlapping registrations
-  if (isRegistering) return
-  isRegistering = true
+// Register a single student - all their courses in parallel
+async function registerStudentParallel(studentNum: number) {
+  if (!simulatorState.isRunning) return
+  
+  simulatorState.activeStudents.add(studentNum)
   
   try {
     const supabase = createServerClient()
-    const studentNum = simulatorState.stats.registeredStudents + 1
 
     // Get available courses
     const { data: courses } = await supabase
@@ -137,8 +149,9 @@ async function registerStudent() {
 
     if (!courses || courses.length === 0) {
       addLog(`⚠️ No available seats for Student #${studentNum}`)
-      simulatorState.stats.registeredStudents = studentNum
+      simulatorState.stats.registeredStudents++
       simulatorState.stats.failedRegistrations += simulatorState.config.coursesPerStudent
+      checkCompletion()
       return
     }
 
@@ -147,56 +160,102 @@ async function registerStudent() {
     const shuffled = [...courses].sort(() => Math.random() - 0.5)
     const selectedCourses = shuffled.slice(0, numCourses)
 
+    // Register all courses in parallel with small random delays for realism
+    const registrationPromises = selectedCourses.map((course, idx) => {
+      // Small random delay between course registrations (0-500ms)
+      const delay = Math.random() * 500
+      return new Promise<{ success: boolean; course: any }>(resolve => {
+        setTimeout(async () => {
+          if (!simulatorState.isRunning) {
+            resolve({ success: false, course })
+            return
+          }
+          
+          try {
+            // Use atomic update with RPC or optimistic update
+            const { data: currentData, error: fetchError } = await supabase
+              .from(TEST_TABLE)
+              .select('*')
+              .eq('Course Code', course['Course Code'])
+              .eq('Section', course['Section'])
+              .single()
+
+            if (fetchError || !currentData || currentData['Seat Left'] <= 0) {
+              resolve({ success: false, course })
+              return
+            }
+
+            const { error } = await supabase
+              .from(TEST_TABLE)
+              .update({
+                'Seat Used': currentData['Seat Used'] + 1,
+                'Seat Left': currentData['Seat Left'] - 1,
+              })
+              .eq('Course Code', course['Course Code'])
+              .eq('Section', course['Section'])
+              .eq('Seat Left', currentData['Seat Left']) // Optimistic lock
+
+            resolve({ success: !error, course })
+          } catch {
+            resolve({ success: false, course })
+          }
+        }, delay)
+      })
+    })
+
+    const results = await Promise.all(registrationPromises)
+    
     let successCount = 0
     let failedCount = 0
-
-    for (const course of selectedCourses) {
-      // Check current availability
-      const { data: currentData } = await supabase
-        .from(TEST_TABLE)
-        .select('*')
-        .eq('Course Code', course['Course Code'])
-        .eq('Section', course['Section'])
-        .single()
-
-      if (!currentData || currentData['Seat Left'] <= 0) {
-        failedCount++
-        continue
-      }
-
-      // Update seat count
-      const { error } = await supabase
-        .from(TEST_TABLE)
-        .update({
-          'Seat Used': currentData['Seat Used'] + 1,
-          'Seat Left': currentData['Seat Left'] - 1,
-        })
-        .eq('Course Code', course['Course Code'])
-        .eq('Section', course['Section'])
-
-      if (error) {
-        failedCount++
-        addLog(`❌ Failed: Student #${studentNum} → ${course['Course Code']}-${course['Section']}`)
-      } else {
+    
+    for (const result of results) {
+      if (result.success) {
         successCount++
-        addLog(`✅ Registered: Student #${studentNum} → ${course['Course Code']}-${course['Section']} (Seat Left: ${currentData['Seat Left'] - 1})`)
+        // Only log some registrations to avoid spam
+        if (studentNum <= 10 || studentNum % 10 === 0) {
+          addLog(`✅ Student #${studentNum} → ${result.course['Course Code']}-${result.course['Section']}`)
+        }
+      } else {
+        failedCount++
       }
     }
 
-    simulatorState.stats.registeredStudents = studentNum
+    // Update stats atomically
+    simulatorState.stats.registeredStudents++
     simulatorState.stats.totalRegistrations += successCount
     simulatorState.stats.failedRegistrations += failedCount
+    
+    // Log summary for this student
+    if (studentNum <= 10 || studentNum % 10 === 0) {
+      addLog(`📊 Student #${studentNum} completed: ${successCount}/${numCourses} courses`)
+    }
+    
+  } catch (error) {
+    simulatorState.stats.registeredStudents++
+    simulatorState.stats.failedRegistrations += simulatorState.config.coursesPerStudent
+    addLog(`❌ Error registering Student #${studentNum}`)
   } finally {
-    isRegistering = false
+    simulatorState.activeStudents.delete(studentNum)
+    global.__studentTimeouts?.delete(studentNum)
+    checkCompletion()
+  }
+}
+
+function checkCompletion() {
+  if (simulatorState.stats.registeredStudents >= simulatorState.config.totalStudents) {
+    addLog(`🎉 Simulation completed! ${simulatorState.stats.totalRegistrations} total registrations`)
+    simulatorState.isRunning = false
   }
 }
 
 export function stopSimulator() {
-  if (global.__simulationInterval) {
-    clearInterval(global.__simulationInterval)
-    global.__simulationInterval = null
+  // Clear all pending student timeouts
+  if (global.__studentTimeouts) {
+    global.__studentTimeouts.forEach((timeout) => clearTimeout(timeout))
+    global.__studentTimeouts.clear()
   }
   simulatorState.isRunning = false
+  simulatorState.activeStudents.clear()
   addLog('⏹️ Simulation stopped')
 }
 

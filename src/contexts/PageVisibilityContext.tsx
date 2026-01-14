@@ -185,7 +185,7 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
     const currentPageId = PAGE_ID_MAP[pathname]
     if (!currentPageId) return
     
-    // Fully hidden kicks everyone
+    // Fully hidden (Lock) kicks everyone including admin - blocks direct URL access
     if (fullyHiddenPages.has(currentPageId) && !kickedRef.current) {
       kickedRef.current = true
       setLockedPageName(currentPageId)
@@ -194,9 +194,13 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
         router.push('/home')
         kickedRef.current = false
       }, 2000)
+      return
     }
-    // Regular hidden only kicks non-admins
-    else if (!isAdmin && hiddenPages.has(currentPageId) && !kickedRef.current) {
+    
+    // Hidden pages block non-admins from direct URL access
+    // (Hide = remove from sidebar, Lock = block URL access)
+    // If page is hidden AND user is not admin, block access
+    if (hiddenPages.has(currentPageId) && !isAdmin && !kickedRef.current) {
       kickedRef.current = true
       setLockedPageName(currentPageId)
       setShowLockedPopup(true)
