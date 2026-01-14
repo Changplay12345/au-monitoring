@@ -59,6 +59,7 @@ export function AnimatedNumber({ value, className = '', duration = 300, onChange
     
     // Notify parent of direction change for glow effect
     if (onChangeDirection) {
+      console.log('AnimatedNumber onChangeDirection:', newDirection, value)
       onChangeDirection(newDirection)
     }
     
@@ -94,6 +95,7 @@ export function AnimatedNumber({ value, className = '', duration = 300, onChange
       
       // End animation after duration
       timeoutRef.current = setTimeout(() => {
+        console.log('AnimatedNumber animation ended, calling onChangeDirection(null)')
         setDigits(prev => prev.map(d => ({ ...d, isAnimating: false })))
         if (onChangeDirection) {
           onChangeDirection(null)

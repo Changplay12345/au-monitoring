@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { AnimatedNumber } from './AnimatedNumber'
+
+// Centralized glow configuration - Change this number to adjust all glow sizes
+const GLOW_SIZE = 'sm' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
 // Course data from CSV
 export interface CSVCourse {
@@ -78,12 +81,30 @@ export function CourseBlock({
 }: CourseBlockProps) {
   const [isGlowing, setIsGlowing] = useState(false)
   
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   // Handle seat change animation - trigger glow
   const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    
     if (direction) {
       setIsGlowing(true)
+      // Force clear after animation duration
+      timeoutRef.current = setTimeout(() => setIsGlowing(false), 400)
     } else {
       setIsGlowing(false)
+    }
+  }, [])
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
     }
   }, [])
   // Use group positioning if provided, otherwise use course time
@@ -111,7 +132,7 @@ export function CourseBlock({
         'hover:z-50 hover:shadow-xl hover:scale-105',
         stackTotal > 1 && 'hover:animate-shake',
         getBlockBgColor(course.seatLeft, course.seatLimit),
-        isGlowing && 'shadow-lg',
+        isGlowing && `shadow-${GLOW_SIZE}`,
         isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
       )}
       style={{
@@ -120,6 +141,8 @@ export function CourseBlock({
         top: `${4 + stackOffset}px`,
         height: `${64 - stackOffset * 2}px`,
         zIndex: isGlowing ? 100 : stackTotal - stackIndex,
+        // You can also add custom shadow here for more control:
+        // boxShadow: isGlowing ? `0 0 20px ${getGlowHexColor(course.seatLeft, course.seatLimit)}` : undefined,
       }}
       onClick={() => onClick?.(course)}
       title={`${course.courseCode} - ${course.courseTitle}\nSection: ${course.section}\nSeats: ${course.seatLeft}/${course.seatLimit} left\nInstructor: ${course.instructor}`}
