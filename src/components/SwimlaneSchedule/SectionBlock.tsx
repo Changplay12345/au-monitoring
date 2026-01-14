@@ -1,7 +1,8 @@
 'use client'
 
+import { useState, useCallback } from 'react'
+import { CSVCourse } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { CSVCourse } from '@/components/CourseBlock'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 
 interface SectionBlockProps {
@@ -48,6 +49,16 @@ export function SectionBlock({
   allSections,
 }: SectionBlockProps) {
   const colors = getBlockColors(section.seatLeft, section.seatLimit)
+  const [isGlowing, setIsGlowing] = useState(false)
+  
+  // Handle seat change animation - trigger glow
+  const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    if (direction) {
+      setIsGlowing(true)
+    } else {
+      setIsGlowing(false)
+    }
+  }, [])
   
   // Calculate vertical stacking within the lane
   const BLOCK_HEIGHT = 28
@@ -62,13 +73,19 @@ export function SectionBlock({
         colors.bg,
         colors.border,
         isHovered && 'ring-2 ring-red-500 ring-offset-1 shadow-lg z-50 scale-[1.02]',
-        !isHovered && 'hover:shadow-md hover:z-40'
+        !isHovered && 'hover:shadow-md hover:z-40',
+        isGlowing && 'shadow-md',
+        isGlowing && section.seatLeft / section.seatLimit >= 0.5 && 'shadow-emerald-400/60',
+        isGlowing && section.seatLeft / section.seatLimit >= 0.25 && section.seatLeft / section.seatLimit < 0.5 && 'shadow-amber-400/60',
+        isGlowing && section.seatLeft / section.seatLimit > 0 && section.seatLeft / section.seatLimit < 0.25 && 'shadow-orange-400/60',
+        isGlowing && section.seatLeft === 0 && 'shadow-red-400/60'
       )}
       style={{
         left: `${left}%`,
         width: `${Math.max(width, 4)}%`,
         top: `${top}px`,
         height: `${BLOCK_HEIGHT}px`,
+        zIndex: isGlowing ? 100 : undefined,
       }}
       onMouseEnter={() => onHover(section.courseCode)}
       onMouseLeave={() => onHover(null)}
@@ -87,7 +104,7 @@ export function SectionBlock({
           getSeatColor(section.seatLeft, section.seatLimit)
         )}
       >
-        <AnimatedNumber value={section.seatLeft} />
+        <AnimatedNumber value={section.seatLeft} onChangeDirection={handleSeatChange} />
       </span>
     </div>
   )

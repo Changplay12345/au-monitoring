@@ -73,6 +73,8 @@ function groupOverlappingCourses(courses: CSVCourse[]): CourseGroup[] {
 }
 
 export function CourseGrid() {
+  const [glowingCourses, setGlowingCourses] = useState<Set<string>>(new Set())
+  
   const {
     groupedByDay,
     isLoading,
@@ -358,6 +360,42 @@ export function CourseGrid() {
     return 'bg-red-500'
   }
 
+  // Get glow color based on seats
+  const getGlowColor = (seatLeft: number, seatLimit: number) => {
+    if (seatLimit === 0) return 'shadow-gray-400/50'
+    const ratio = seatLeft / seatLimit
+    if (ratio >= 0.5) return 'shadow-emerald-400/60'
+    if (ratio >= 0.25) return 'shadow-amber-400/60'
+    if (ratio > 0) return 'shadow-orange-400/60'
+    return 'shadow-red-400/60'
+  }
+
+  // Handle glow for search results
+  const handleSearchGlow = useCallback((courseId: string, direction: 'up' | 'down' | null) => {
+    setGlowingCourses(prev => {
+      const newSet = new Set(prev)
+      if (direction) {
+        newSet.add(courseId)
+      } else {
+        newSet.delete(courseId)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Handle glow for detail panel courses
+  const handleDetailGlow = useCallback((courseId: string, direction: 'up' | 'down' | null) => {
+    setGlowingCourses(prev => {
+      const newSet = new Set(prev)
+      if (direction) {
+        newSet.add(`detail-${courseId}`)
+      } else {
+        newSet.delete(`detail-${courseId}`)
+      }
+      return newSet
+    })
+  }, [])
+
   // Generate time ruler ticks
   const ticks = Array.from({ length: CELLS + 1 }, (_, i) => {
     const t = START_MIN + i * STEP_MIN
@@ -427,24 +465,32 @@ export function CourseGrid() {
             {/* Search dropdown results */}
             {showSearchDropdown && searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                {searchResults.map((course, idx) => (
-                  <button
-                    key={`${course.courseCode}-${course.section}-${idx}`}
-                    onClick={() => handleSearchResultClick(course)}
-                    className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="flex flex-col items-start">
-                      <span className="font-semibold text-gray-800 text-sm">{course.courseCode}</span>
-                      <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
-                    </div>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded text-xs font-bold text-white",
-                      getSeatColor(course.seatLeft, course.seatLimit)
-                    )}>
-                      <AnimatedNumber value={course.seatLeft} />/{course.seatLimit}
-                    </span>
-                  </button>
-                ))}
+                {searchResults.map((course, idx) => {
+                  const courseId = `${course.courseCode}-${course.section}`
+                  const isGlowing = glowingCourses.has(courseId)
+                  return (
+                    <button
+                      key={courseId}
+                      onClick={() => handleSearchResultClick(course)}
+                      className={cn(
+                        "w-full px-3 py-2 flex items-center justify-between transition-colors border-b border-gray-100 last:border-b-0",
+                        "hover:bg-gray-50",
+                        isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
+                      )}
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="font-semibold text-gray-800 text-sm">{course.courseCode}</span>
+                        <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
+                      </div>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded text-xs font-bold text-white",
+                        getSeatColor(course.seatLeft, course.seatLimit)
+                      )}>
+                        <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleSearchGlow(courseId, dir)} />/{course.seatLimit}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
             {/* No results message */}
@@ -560,36 +606,42 @@ export function CourseGrid() {
                     </div>
                     {/* Course cards - 2 column grid */}
                     <div className="grid grid-cols-2 gap-2">
-                      {courses.map((course, idx) => (
-                        <div 
-                          key={`${course.courseCode}-${idx}`}
-                          className={cn(
-                            "p-3 rounded-lg border-2",
-                            course.seatLeft === 0 ? "bg-red-50 border-red-300" :
-                            course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-50 border-orange-300" :
-                            course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-50 border-amber-300" :
-                            "bg-emerald-50 border-emerald-300"
-                          )}
-                        >
-                          <div className="flex justify-between items-start">
-                            <span className="font-bold text-gray-800">{course.courseCode}</span>
-                            <span className={cn(
-                              "px-2 py-0.5 rounded text-xs font-bold text-white",
-                              course.seatLeft === 0 ? "bg-red-500" :
-                              course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
-                              course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
-                              "bg-emerald-500"
-                            )}>
-                              <AnimatedNumber value={course.seatLeft} />/{course.seatLimit}
-                            </span>
+                      {courses.map((course, idx) => {
+                        const courseId = `${course.courseCode}-${course.section}`
+                        const isGlowing = glowingCourses.has(`detail-${courseId}`)
+                        return (
+                          <div 
+                            key={courseId}
+                            className={cn(
+                              "p-3 rounded-lg border-2 transition-all duration-200",
+                              course.seatLeft === 0 ? "bg-red-50 border-red-300" :
+                              course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-50 border-orange-300" :
+                              course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-50 border-amber-300" :
+                              "bg-emerald-50 border-emerald-300",
+                              isGlowing && "shadow-md",
+                              isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
+                            )}
+                          >
+                            <div className="flex justify-between items-start">
+                              <span className="font-bold text-gray-800">{course.courseCode}</span>
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-xs font-bold text-white",
+                                course.seatLeft === 0 ? "bg-red-500" :
+                                course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
+                                course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
+                                "bg-emerald-500"
+                              )}>
+                                <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleDetailGlow(courseId, dir)} />/{course.seatLimit}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">{course.courseTitle}</p>
+                            <div className="text-xs text-gray-500 mt-2">
+                              <div>Section: {course.section}</div>
+                              <div>Instructor: {course.instructor}</div>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">{course.courseTitle}</p>
-                          <div className="text-xs text-gray-500 mt-2">
-                            <div>Section: {course.section}</div>
-                            <div>Instructor: {course.instructor}</div>
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 ))}
