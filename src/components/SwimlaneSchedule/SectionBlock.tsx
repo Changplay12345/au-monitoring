@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { CSVCourse } from '@/lib/types'
+import { CSVCourse } from '../CourseBlock'
 import { cn } from '@/lib/utils'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 
