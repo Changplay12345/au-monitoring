@@ -73,7 +73,7 @@ function groupOverlappingCourses(courses: CSVCourse[]): CourseGroup[] {
 }
 
 // Centralized glow configuration - Change this number to adjust all glow sizes
-const GLOW_SIZE = 'lg' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
+const GLOW_SIZE = 'md' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
 export function CourseGrid() {
   const [glowingCourses, setGlowingCourses] = useState<Set<string>>(new Set())
@@ -518,7 +518,7 @@ export function CourseGrid() {
                         <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
                       </div>
                       <span className={cn(
-                        "px-2 py-0.5 rounded text-xs font-bold text-white",
+                        "px-2 py-0.5 rounded text-xs font-bold text-white font-mono tabular-nums",
                         getSeatColor(course.seatLeft, course.seatLimit)
                       )}>
                         <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleSearchGlow(courseId, dir)} />/{course.seatLimit}
@@ -660,7 +660,7 @@ export function CourseGrid() {
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-gray-800">{course.courseCode}</span>
                               <span className={cn(
-                                "px-2 py-0.5 rounded text-xs font-bold text-white",
+                                "px-2 py-0.5 rounded text-xs font-bold text-white font-mono tabular-nums",
                                 course.seatLeft === 0 ? "bg-red-500" :
                                 course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
                                 course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
