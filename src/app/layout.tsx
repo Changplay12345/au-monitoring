@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { CookieProvider } from "@/components/CookieProvider";
 import { PageVisibilityProvider } from "@/contexts/PageVisibilityContext";
+import { LockedPagePopup } from "@/components/LockedPagePopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
       >
         <PageVisibilityProvider>
           {children}
+          <LockedPagePopup />
         </PageVisibilityProvider>
         <CookieProvider />
       </body>

@@ -120,40 +120,7 @@ const documents: Document[] = [
       'Best practices'
     ]
   },
-  {
-    id: 'technical-spec',
-    title: 'Technical Specifications',
-    description: 'Detailed technical implementation guidelines and system architecture',
-    type: 'technical',
-    size: 'No file',
-    lastUpdated: 'December 2025',
-    downloadUrl: '/technical-specifications.pdf',
-    icon: <Shield className="w-6 h-6" />,
-    features: [
-      'Database schema',
-      'API documentation',
-      'Security requirements',
-      'Performance specifications',
-      'Integration guidelines'
-    ]
-  },{
-    id: 'api-documentation',
-    title: 'API Documentation ',
-    description: 'RESTful API endpoints and integration documentation',
-    type: 'api',
-    size: 'No file',
-    lastUpdated: 'December 2025',
-    downloadUrl: '/api-documentation.pdf',
-    icon: <Zap className="w-6 h-6" />,
-    features: [
-      'Endpoint reference',
-      'Authentication guide',
-      'Request/response examples',
-      'Error handling',
-      'Rate limiting'
-    ]
-  }
-
+  
 ]
 
 const typeColors = {

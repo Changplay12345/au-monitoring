@@ -21,7 +21,7 @@ const universityAds: UniversityAd[] = [
     description: "A comprehensive web-based platform providing real-time course monitoring, analytics, and management capabilities.",
     image: "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&h=600&fit=crop",
     ctaText: "Learn More",
-    ctaLink: "/project-overview"
+    ctaLink: "/course-monitoring"
   },
   {
     id: 2,
@@ -29,8 +29,8 @@ const universityAds: UniversityAd[] = [
     subtitle: "Desktop Application",
     description: "Intelligent software solution designed to streamline academic planning and curriculum management.",
     image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=600&fit=crop",
-    ctaText: "Download Now",
-    ctaLink: "/tqf-desktop"
+    ctaText: "Try Now",
+    ctaLink: "/tqf-master"
   },
   {
     id: 3,
@@ -38,8 +38,8 @@ const universityAds: UniversityAd[] = [
     subtitle: "Physical Infrastructure",
     description: "Robust hardware components forming the foundation of our monitoring ecosystem for data collection.",
     image: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&h=600&fit=crop",
-    ctaText: "Explore",
-    ctaLink: "/project-overview"
+    ctaText: "",
+    ctaLink: ""
   }
 ]
 
@@ -99,12 +99,14 @@ export function UniversityAdCarousel() {
                 <p className="text-lg mb-6 max-w-2xl mx-auto">
                   {ad.description}
                 </p>
-                <a 
-                  href={ad.ctaLink}
-                  className="inline-block bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  {ad.ctaText}
-                </a>
+                {ad.ctaText && ad.ctaLink && (
+                  <a 
+                    href={ad.ctaLink}
+                    className="inline-block bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    {ad.ctaText}
+                  </a>
+                )}
               </div>
             </div>
           </div>

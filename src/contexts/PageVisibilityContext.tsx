@@ -13,6 +13,10 @@ interface PageVisibilityContextType {
   toggleFullyHidden: (pageId: string) => Promise<void>
   refreshVisibility: () => Promise<void>
   isAdmin: boolean
+  showLockedPopup: boolean
+  lockedPageName: string
+  dismissLockedPopup: () => void
+  isInitialized: boolean
 }
 
 const PageVisibilityContext = createContext<PageVisibilityContextType | null>(null)
@@ -34,11 +38,19 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
   const [hiddenPages, setHiddenPages] = useState<Set<string>>(new Set())
   const [fullyHiddenPages, setFullyHiddenPages] = useState<Set<string>>(new Set())
   const [lastTimestamp, setLastTimestamp] = useState<number>(0)
+  const [showLockedPopup, setShowLockedPopup] = useState(false)
+  const [lockedPageName, setLockedPageName] = useState('')
+  const [isInitialized, setIsInitialized] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const isAdmin = user?.role === 'admin'
   const kickedRef = useRef(false)
+
+  const dismissLockedPopup = useCallback(() => {
+    setShowLockedPopup(false)
+    setLockedPageName('')
+  }, [])
 
   // Fetch hidden pages from API
   const refreshVisibility = useCallback(async () => {
@@ -52,22 +64,33 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
         setHiddenPages(newHiddenPages)
         setFullyHiddenPages(newFullyHiddenPages)
         
+        // Mark as initialized after first fetch
+        if (!isInitialized) {
+          setIsInitialized(true)
+        }
+        
         // Check if current page was just hidden/fully hidden
         if (data.timestamp > lastTimestamp && lastTimestamp > 0) {
           const currentPageId = PAGE_ID_MAP[pathname]
           // Fully hidden kicks everyone including admin
           if (currentPageId && newFullyHiddenPages.has(currentPageId) && !kickedRef.current) {
             kickedRef.current = true
-            alert(`This page "${currentPageId}" has been completely locked. You will be redirected to the home page.`)
-            router.push('/home')
-            setTimeout(() => { kickedRef.current = false }, 2000)
+            setLockedPageName(currentPageId)
+            setShowLockedPopup(true)
+            setTimeout(() => {
+              router.push('/home')
+              kickedRef.current = false
+            }, 2000)
           }
           // Regular hidden only kicks non-admins
           else if (currentPageId && newHiddenPages.has(currentPageId) && !isAdmin && !kickedRef.current) {
             kickedRef.current = true
-            alert(`This page "${currentPageId}" has been locked by an administrator. You will be redirected to the home page.`)
-            router.push('/home')
-            setTimeout(() => { kickedRef.current = false }, 2000)
+            setLockedPageName(currentPageId)
+            setShowLockedPopup(true)
+            setTimeout(() => {
+              router.push('/home')
+              kickedRef.current = false
+            }, 2000)
           }
         }
         
@@ -156,18 +179,33 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
 
   // Check if user is on a hidden page on mount/navigation
   useEffect(() => {
-    if (!isAdmin && pathname) {
-      const currentPageId = PAGE_ID_MAP[pathname]
-      if (currentPageId && hiddenPages.has(currentPageId) && !kickedRef.current) {
-        kickedRef.current = true
-        alert(`This page "${currentPageId}" is currently locked. You will be redirected to the home page.`)
+    // Wait for initialization before checking
+    if (!isInitialized) return
+    
+    const currentPageId = PAGE_ID_MAP[pathname]
+    if (!currentPageId) return
+    
+    // Fully hidden kicks everyone
+    if (fullyHiddenPages.has(currentPageId) && !kickedRef.current) {
+      kickedRef.current = true
+      setLockedPageName(currentPageId)
+      setShowLockedPopup(true)
+      setTimeout(() => {
         router.push('/home')
-        setTimeout(() => {
-          kickedRef.current = false
-        }, 2000)
-      }
+        kickedRef.current = false
+      }, 2000)
     }
-  }, [pathname, hiddenPages, isAdmin, router])
+    // Regular hidden only kicks non-admins
+    else if (!isAdmin && hiddenPages.has(currentPageId) && !kickedRef.current) {
+      kickedRef.current = true
+      setLockedPageName(currentPageId)
+      setShowLockedPopup(true)
+      setTimeout(() => {
+        router.push('/home')
+        kickedRef.current = false
+      }, 2000)
+    }
+  }, [pathname, hiddenPages, fullyHiddenPages, isAdmin, router, isInitialized])
 
   return (
     <PageVisibilityContext.Provider value={{
@@ -178,7 +216,11 @@ export function PageVisibilityProvider({ children }: { children: React.ReactNode
       togglePageVisibility,
       toggleFullyHidden,
       refreshVisibility,
-      isAdmin
+      isAdmin,
+      showLockedPopup,
+      lockedPageName,
+      dismissLockedPopup,
+      isInitialized
     }}>
       {children}
     </PageVisibilityContext.Provider>

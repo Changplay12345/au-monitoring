@@ -86,7 +86,7 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
             <img
               src="/au-monitoring-logo2.png"
               alt="AU Monitoring Logo"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-22 w-46 h-46 object-contain rounded-full z-10 animate-pulse bg-white"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 object-contain rounded-full z-10 animate-pulse bg-white"
             />
           </div>
           {/* Loading spinner */}
