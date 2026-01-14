@@ -77,6 +77,7 @@ const GLOW_SIZE = 'lg' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
 export function CourseGrid() {
   const [glowingCourses, setGlowingCourses] = useState<Set<string>>(new Set())
+  const glowTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   
   const {
     groupedByDay,
@@ -388,15 +389,46 @@ export function CourseGrid() {
 
   // Handle glow for detail panel courses
   const handleDetailGlow = useCallback((courseId: string, direction: 'up' | 'down' | null) => {
+    const detailId = `detail-${courseId}`
+    
+    // Clear existing timeout for this course
+    const existingTimeout = glowTimeoutsRef.current.get(detailId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      glowTimeoutsRef.current.delete(detailId)
+    }
+    
     setGlowingCourses(prev => {
       const newSet = new Set(prev)
       if (direction) {
-        newSet.add(`detail-${courseId}`)
+        console.log('CourseGrid handleDetailGlow: adding glow', detailId)
+        newSet.add(detailId)
+        
+        // Force clear after animation duration
+        const timeout = setTimeout(() => {
+          console.log('CourseGrid timeout clearing glow', detailId)
+          setGlowingCourses(prevSet => {
+            const updatedSet = new Set(prevSet)
+            updatedSet.delete(detailId)
+            return updatedSet
+          })
+          glowTimeoutsRef.current.delete(detailId)
+        }, 400)
+        glowTimeoutsRef.current.set(detailId, timeout)
       } else {
-        newSet.delete(`detail-${courseId}`)
+        console.log('CourseGrid handleDetailGlow: removing glow', detailId)
+        newSet.delete(detailId)
       }
       return newSet
     })
+  }, [])
+
+  // Cleanup all glow timeouts on unmount
+  useEffect(() => {
+    return () => {
+      glowTimeoutsRef.current.forEach(timeout => clearTimeout(timeout))
+      glowTimeoutsRef.current.clear()
+    }
   }, [])
 
   // Generate time ruler ticks
