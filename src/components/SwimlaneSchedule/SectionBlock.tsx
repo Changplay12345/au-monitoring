@@ -58,20 +58,28 @@ export function SectionBlock({
   
   // Handle seat change animation - trigger glow
   const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    console.log('SectionBlock handleSeatChange:', direction, section.courseCode)
+    
     // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
     
     if (direction) {
       setIsGlowing(true)
-      // Force clear after animation duration
-      timeoutRef.current = setTimeout(() => setIsGlowing(false), 400)
+      // Force clear after animation duration - ensure it always clears
+      timeoutRef.current = setTimeout(() => {
+        console.log('SectionBlock timeout clearing glow:', section.courseCode)
+        setIsGlowing(false)
+        timeoutRef.current = null
+      }, 400)
     } else {
       setIsGlowing(false)
     }
-  }, [])
+  }, [section.courseCode])
   
+    
   // Cleanup on unmount
   useEffect(() => {
     return () => {
