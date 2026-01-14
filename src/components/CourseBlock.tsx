@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { AnimatedNumber } from './AnimatedNumber'
 
@@ -49,6 +50,16 @@ function getBlockBgColor(seatLeft: number, seatLimit: number): string {
   return 'bg-red-100 border-red-400'
 }
 
+// Get glow color based on seats (for animation)
+function getGlowColor(seatLeft: number, seatLimit: number): string {
+  if (seatLimit === 0) return 'shadow-gray-400/50'
+  const ratio = seatLeft / seatLimit
+  if (ratio >= 0.5) return 'shadow-emerald-400/60'
+  if (ratio >= 0.25) return 'shadow-amber-400/60'
+  if (ratio > 0) return 'shadow-orange-400/60'
+  return 'shadow-red-400/60'
+}
+
 // Convert time string to minutes
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number)
@@ -65,6 +76,16 @@ export function CourseBlock({
   stackTotal = 1,
   onClick,
 }: CourseBlockProps) {
+  const [isGlowing, setIsGlowing] = useState(false)
+  
+  // Handle seat change animation - trigger glow
+  const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    if (direction) {
+      setIsGlowing(true)
+    } else {
+      setIsGlowing(false)
+    }
+  }, [])
   // Use group positioning if provided, otherwise use course time
   const timelineStart = groupStartMin ?? startMin
   const timelineSpan = groupSpanMin ?? spanMin
@@ -89,14 +110,16 @@ export function CourseBlock({
         'absolute rounded-lg border-2 cursor-pointer transition-all duration-200',
         'hover:z-50 hover:shadow-xl hover:scale-105',
         stackTotal > 1 && 'hover:animate-shake',
-        getBlockBgColor(course.seatLeft, course.seatLimit)
+        getBlockBgColor(course.seatLeft, course.seatLimit),
+        isGlowing && 'shadow-lg',
+        isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
       )}
       style={{
         left: `${left}%`,
         width: `calc(${width}% - ${marginRight})`,
         top: `${4 + stackOffset}px`,
         height: `${64 - stackOffset * 2}px`,
-        zIndex: stackTotal - stackIndex,
+        zIndex: isGlowing ? 100 : stackTotal - stackIndex,
       }}
       onClick={() => onClick?.(course)}
       title={`${course.courseCode} - ${course.courseTitle}\nSection: ${course.section}\nSeats: ${course.seatLeft}/${course.seatLimit} left\nInstructor: ${course.instructor}`}
@@ -113,7 +136,7 @@ export function CourseBlock({
           getSeatColor(course.seatLeft, course.seatLimit)
         )}
       >
-        <AnimatedNumber value={course.seatLeft} />
+        <AnimatedNumber value={course.seatLeft} onChangeDirection={handleSeatChange} />
       </span>
 
       {/* Stack indicator */}

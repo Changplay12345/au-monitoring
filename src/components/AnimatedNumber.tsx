@@ -1,79 +1,26 @@
 'use client'
 
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 
 interface AnimatedNumberProps {
   value: number
   className?: string
   duration?: number
+  onChangeDirection?: (direction: 'up' | 'down' | null) => void
 }
 
-interface DigitProps {
-  digit: string
-  prevDigit: string
-  direction: 'up' | 'down'
-  duration: number
+interface DigitState {
+  current: string
+  prev: string
   isAnimating: boolean
+  animationKey: number
 }
 
-function AnimatedDigit({ digit, prevDigit, direction, duration, isAnimating }: DigitProps) {
-  const hasChanged = isAnimating && digit !== prevDigit
-
-  return (
-    <span
-      className="relative inline-block overflow-hidden"
-      style={{ 
-        width: '0.65em',
-        height: '1.2em',
-      }}
-    >
-      {/* Previous digit (slides out) */}
-      <span
-        className="absolute inset-0 flex items-center justify-center"
-        style={{
-          transform: hasChanged 
-            ? direction === 'down' 
-              ? 'translateY(-120%)' 
-              : 'translateY(120%)'
-            : 'translateY(0)',
-          transition: hasChanged ? `transform ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)` : 'none',
-          opacity: hasChanged ? 0 : 1,
-        }}
-      >
-        {prevDigit}
-      </span>
-      
-      {/* New digit (slides in) */}
-      <span
-        className="absolute inset-0 flex items-center justify-center"
-        style={{
-          transform: hasChanged 
-            ? 'translateY(0)' 
-            : direction === 'down' 
-              ? 'translateY(120%)' 
-              : 'translateY(-120%)',
-          transition: hasChanged ? `transform ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)` : 'none',
-          opacity: hasChanged ? 1 : 0,
-        }}
-      >
-        {digit}
-      </span>
-      
-      {/* Static display when not animating */}
-      {!hasChanged && (
-        <span className="absolute inset-0 flex items-center justify-center">
-          {digit}
-        </span>
-      )}
-    </span>
-  )
-}
-
-export function AnimatedNumber({ value, className = '', duration = 350 }: AnimatedNumberProps) {
-  const [displayValue, setDisplayValue] = useState(value)
-  const [prevValue, setPrevValue] = useState(value)
-  const [isAnimating, setIsAnimating] = useState(false)
+export function AnimatedNumber({ value, className = '', duration = 300, onChangeDirection }: AnimatedNumberProps) {
+  const [digits, setDigits] = useState<DigitState[]>([])
   const [direction, setDirection] = useState<'up' | 'down'>('down')
+  const prevValueRef = useRef(value)
+  const animationKeyRef = useRef(0)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Check for reduced motion preference
@@ -82,63 +29,150 @@ export function AnimatedNumber({ value, className = '', duration = 350 }: Animat
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches
   }, [])
 
+  // Initialize digits on mount
   useEffect(() => {
-    if (displayValue !== value) {
-      // Clear any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-
-      // Determine direction (down = number decreasing, scroll from top)
-      setDirection(value < displayValue ? 'down' : 'up')
-      setPrevValue(displayValue)
-      
-      if (prefersReducedMotion) {
-        // Skip animation for reduced motion
-        setDisplayValue(value)
-      } else {
-        // Start animation
-        setIsAnimating(true)
-        setDisplayValue(value)
-        
-        // End animation after duration
-        timeoutRef.current = setTimeout(() => {
-          setIsAnimating(false)
-        }, duration + 50)
-      }
+    if (digits.length === 0) {
+      const str = String(value)
+      setDigits(str.split('').map((d, i) => ({
+        current: d,
+        prev: d,
+        isAnimating: false,
+        animationKey: i,
+      })))
     }
+  }, [])
+
+  useEffect(() => {
+    const oldValue = prevValueRef.current
+    const newValue = value
+    
+    if (oldValue === newValue) return
+    
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+
+    // Determine direction
+    const newDirection = newValue < oldValue ? 'down' : 'up'
+    setDirection(newDirection)
+    
+    // Notify parent of direction change for glow effect
+    if (onChangeDirection) {
+      onChangeDirection(newDirection)
+    }
+    
+    const oldStr = String(oldValue)
+    const newStr = String(newValue)
+    
+    // Pad to same length
+    const maxLen = Math.max(oldStr.length, newStr.length)
+    const oldDigits = oldStr.padStart(maxLen, ' ').split('')
+    const newDigits = newStr.padStart(maxLen, ' ').split('')
+    
+    if (prefersReducedMotion) {
+      // Skip animation
+      setDigits(newDigits.map((d, i) => ({
+        current: d,
+        prev: d,
+        isAnimating: false,
+        animationKey: i,
+      })))
+    } else {
+      // Create new digit states - ALL changed digits animate
+      const newDigitStates = newDigits.map((d, i) => {
+        const changed = d !== oldDigits[i]
+        return {
+          current: d,
+          prev: oldDigits[i],
+          isAnimating: changed,
+          animationKey: changed ? ++animationKeyRef.current : animationKeyRef.current,
+        }
+      })
+      
+      setDigits(newDigitStates)
+      
+      // End animation after duration
+      timeoutRef.current = setTimeout(() => {
+        setDigits(prev => prev.map(d => ({ ...d, isAnimating: false })))
+        if (onChangeDirection) {
+          onChangeDirection(null)
+        }
+      }, duration + 50)
+    }
+    
+    prevValueRef.current = newValue
     
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [value, displayValue, duration, prefersReducedMotion])
-
-  // Convert numbers to digit arrays
-  const currentDigits = String(displayValue).split('')
-  const prevDigits = String(prevValue).split('')
-  
-  // Pad shorter array to match length
-  const maxLength = Math.max(currentDigits.length, prevDigits.length)
-  while (currentDigits.length < maxLength) currentDigits.unshift(' ')
-  while (prevDigits.length < maxLength) prevDigits.unshift(' ')
+  }, [value, duration, prefersReducedMotion, onChangeDirection])
 
   return (
     <span 
       className={`inline-flex ${className}`}
       style={{ lineHeight: 1 }}
     >
-      {currentDigits.map((digit, index) => (
-        <AnimatedDigit
-          key={`${index}-${maxLength}`}
-          digit={digit}
-          prevDigit={prevDigits[index]}
-          direction={direction}
-          duration={duration}
-          isAnimating={isAnimating}
-        />
+      {digits.map((digit, index) => (
+        <span
+          key={index}
+          className="relative inline-block overflow-hidden"
+          style={{ 
+            width: '0.65em',
+            height: '1.2em',
+          }}
+        >
+          {digit.isAnimating ? (
+            <>
+              {/* Previous digit (slides out) */}
+              <span
+                key={`prev-${digit.animationKey}`}
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  animation: `slideOut${direction === 'down' ? 'Up' : 'Down'} ${duration}ms ease-out forwards`,
+                }}
+              >
+                {digit.prev}
+              </span>
+              
+              {/* New digit (slides in) */}
+              <span
+                key={`curr-${digit.animationKey}`}
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  animation: `slideIn${direction === 'down' ? 'FromUp' : 'FromDown'} ${duration}ms ease-out forwards`,
+                }}
+              >
+                {digit.current}
+              </span>
+            </>
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center">
+              {digit.current}
+            </span>
+          )}
+        </span>
       ))}
+      <style jsx>{`
+        @keyframes slideOutUp {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(-120%); opacity: 0; }
+        }
+        @keyframes slideOutDown {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(120%); opacity: 0; }
+        }
+        @keyframes slideInFromUp {
+          from { transform: translateY(-120%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes slideInFromDown {
+          from { transform: translateY(120%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </span>
   )
 }

@@ -462,7 +462,7 @@ export default function RegistrationSimulatorPage() {
   // Kill process and reset to defaults
   const killAndReset = useCallback(async () => {
     try {
-      await fetch('/api/simulator/stop', { method: 'POST' });
+      await fetch('/api/simulator/kill', { method: 'POST' });
       setIsSimulating(false);
       setIsPaused(false);
       setConfig({
@@ -480,6 +480,9 @@ export default function RegistrationSimulatorPage() {
       });
       setRegistrationHistory([]);
       setLogs([]);
+      // Clear localStorage as well
+      localStorage.removeItem(STORAGE_KEYS.stats);
+      localStorage.removeItem(STORAGE_KEYS.logs);
       addLog('🔴 Process killed and settings reset to defaults');
     } catch (error) {
       addLog('❌ Failed to kill process');

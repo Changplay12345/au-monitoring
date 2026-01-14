@@ -259,6 +259,29 @@ export function stopSimulator() {
   addLog('⏹️ Simulation stopped')
 }
 
+export function killSimulator() {
+  // Clear all pending student timeouts
+  if (global.__studentTimeouts) {
+    global.__studentTimeouts.forEach((timeout) => clearTimeout(timeout))
+    global.__studentTimeouts.clear()
+  }
+  
+  // Reset everything to defaults
+  simulatorState.isRunning = false
+  simulatorState.sessionId = null
+  simulatorState.stats = {
+    registeredStudents: 0,
+    totalRegistrations: 0,
+    failedRegistrations: 0,
+    startTime: null,
+    elapsedTime: 0,
+  }
+  simulatorState.logs = []
+  simulatorState.activeStudents.clear()
+  
+  addLog('🔴 Process killed and reset')
+}
+
 export async function resetSimulator() {
   stopSimulator()
   

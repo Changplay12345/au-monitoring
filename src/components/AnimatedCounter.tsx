@@ -206,13 +206,13 @@ interface RollingCounterProps {
   value: number;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  onChangeDirection?: (direction: 'up' | 'down' | null) => void;
 }
 
-export function RollingCounter({ value, className = '', size = 'md' }: RollingCounterProps) {
-  const [digits, setDigits] = useState<string[]>([]);
-  const [prevDigits, setPrevDigits] = useState<string[]>([]);
-  const [directions, setDirections] = useState<('up' | 'down' | 'none')[]>([]);
+export function RollingCounter({ value, className = '', size = 'md', onChangeDirection }: RollingCounterProps) {
+  const [displayDigits, setDisplayDigits] = useState<{ current: string; prev: string; direction: 'up' | 'down' | 'none'; key: number }[]>([]);
   const prevValueRef = useRef(value);
+  const animationKeyRef = useRef(0);
 
   const sizeClasses = {
     sm: 'h-5 text-sm',
@@ -221,76 +221,109 @@ export function RollingCounter({ value, className = '', size = 'md' }: RollingCo
   };
 
   useEffect(() => {
-    const newDigits = String(value).split('');
-    const oldDigits = String(prevValueRef.current).split('');
+    const newValue = value;
+    const oldValue = prevValueRef.current;
+    
+    if (newValue === oldValue && displayDigits.length > 0) return;
+    
+    const newStr = String(newValue);
+    const oldStr = String(oldValue);
     
     // Pad to same length
-    const maxLen = Math.max(newDigits.length, oldDigits.length);
-    while (newDigits.length < maxLen) newDigits.unshift('0');
-    while (oldDigits.length < maxLen) oldDigits.unshift('0');
+    const maxLen = Math.max(newStr.length, oldStr.length);
+    const newDigits = newStr.padStart(maxLen, '0').split('');
+    const oldDigits = oldStr.padStart(maxLen, '0').split('');
     
-    // Calculate directions
-    const newDirections = newDigits.map((d, i) => {
-      if (d === oldDigits[i]) return 'none' as const;
-      return parseInt(d) > parseInt(oldDigits[i]) ? 'up' as const : 'down' as const;
+    // Overall direction based on value change
+    const overallDirection: 'up' | 'down' | 'none' = newValue > oldValue ? 'up' : newValue < oldValue ? 'down' : 'none';
+    
+    // Notify parent of direction change
+    if (onChangeDirection && overallDirection !== 'none') {
+      onChangeDirection(overallDirection);
+      // Clear after animation
+      setTimeout(() => onChangeDirection(null), 400);
+    }
+    
+    // Create digit objects - ALL digits that changed get animated
+    const digits = newDigits.map((digit, i) => {
+      const changed = digit !== oldDigits[i];
+      return {
+        current: digit,
+        prev: oldDigits[i],
+        direction: changed ? overallDirection : 'none' as const,
+        key: changed ? ++animationKeyRef.current : animationKeyRef.current,
+      };
     });
     
-    // If overall value increased, all changing digits go up
-    const overallDirection = value > prevValueRef.current ? 'up' : 'down';
-    const finalDirections = newDirections.map(d => d === 'none' ? 'none' : overallDirection);
-    
-    setPrevDigits(oldDigits);
-    setDigits(newDigits);
-    setDirections(finalDirections);
-    prevValueRef.current = value;
-  }, [value]);
+    setDisplayDigits(digits);
+    prevValueRef.current = newValue;
+  }, [value, onChangeDirection]);
+
+  // Initialize on mount
+  useEffect(() => {
+    if (displayDigits.length === 0) {
+      const str = String(value);
+      setDisplayDigits(str.split('').map((d, i) => ({
+        current: d,
+        prev: d,
+        direction: 'none' as const,
+        key: i,
+      })));
+    }
+  }, []);
 
   return (
     <span className={`inline-flex font-mono tabular-nums ${className}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
-      {digits.map((digit, i) => (
+      {displayDigits.map((digit, i) => (
         <span 
           key={i} 
           className={`relative overflow-hidden ${sizeClasses[size]} w-[0.65em] inline-flex items-center justify-center`}
         >
-          {/* Previous digit (animates out) */}
-          <span
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-250 ease-out ${
-              directions[i] === 'none' 
-                ? 'translate-y-0 opacity-100'
-                : directions[i] === 'up'
-                  ? '-translate-y-full opacity-0'
-                  : 'translate-y-full opacity-0'
-            }`}
-          >
-            {prevDigits[i] || '0'}
-          </span>
-          {/* New digit (animates in) */}
-          <span
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-250 ease-out ${
-              directions[i] === 'none'
-                ? 'translate-y-0 opacity-100'
-                : 'translate-y-0 opacity-100'
-            }`}
-            style={{
-              transform: directions[i] === 'none' 
-                ? 'translateY(0)' 
-                : undefined,
-              animation: directions[i] !== 'none' 
-                ? `rollIn${directions[i] === 'up' ? 'Up' : 'Down'} 250ms ease-out forwards`
-                : undefined
-            }}
-          >
-            {digit}
-          </span>
+          {digit.direction !== 'none' ? (
+            <>
+              {/* Previous digit (animates out) */}
+              <span
+                key={`prev-${digit.key}`}
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  animation: `slideOut${digit.direction === 'down' ? 'Up' : 'Down'} 300ms ease-out forwards`
+                }}
+              >
+                {digit.prev}
+              </span>
+              {/* New digit (animates in) */}
+              <span
+                key={`curr-${digit.key}`}
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  animation: `slideIn${digit.direction === 'down' ? 'FromUp' : 'FromDown'} 300ms ease-out forwards`
+                }}
+              >
+                {digit.current}
+              </span>
+            </>
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center">
+              {digit.current}
+            </span>
+          )}
         </span>
       ))}
       <style jsx>{`
-        @keyframes rollInUp {
-          from { transform: translateY(100%); opacity: 0; }
+        @keyframes slideOutUp {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(-100%); opacity: 0; }
+        }
+        @keyframes slideOutDown {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(100%); opacity: 0; }
+        }
+        @keyframes slideInFromUp {
+          from { transform: translateY(-100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
-        @keyframes rollInDown {
-          from { transform: translateY(-100%); opacity: 0; }
+        @keyframes slideInFromDown {
+          from { transform: translateY(100%); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
