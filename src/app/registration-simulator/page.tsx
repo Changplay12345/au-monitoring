@@ -162,6 +162,7 @@ export default function RegistrationSimulatorPage() {
   useEffect(() => {
     let isMounted = true;
     let lastRegisteredStudents = 0;
+    let lastSessionId: string | null = null;
     
     const pollStatus = async () => {
       if (!isMounted) return;
@@ -172,9 +173,21 @@ export default function RegistrationSimulatorPage() {
         
         if (res.ok) {
           const data = await res.json();
+          
+          // Detect session change (new simulation started or killed)
+          if (data.sessionId !== lastSessionId) {
+            lastSessionId = data.sessionId;
+            lastRegisteredStudents = 0; // Reset counter for new session
+          }
+          
           setIsSimulating(data.isRunning);
           
-          if (data.isRunning && data.stats) {
+          // If not running, don't update stats from server (use local state)
+          if (!data.isRunning) {
+            return;
+          }
+          
+          if (data.stats) {
             // Only update if the new value is >= current to prevent jumping back
             const newRegistered = data.stats.registeredStudents;
             if (newRegistered >= lastRegisteredStudents) {
@@ -190,7 +203,7 @@ export default function RegistrationSimulatorPage() {
           }
           
           // Only sync logs from server if simulation is running
-          if (data.isRunning && data.logs && data.logs.length > 0) {
+          if (data.logs && data.logs.length > 0) {
             setLogs(prev => {
               const serverLogs = data.logs;
               const newLogs = serverLogs.filter((log: string) => !prev.includes(log));
@@ -449,22 +462,37 @@ export default function RegistrationSimulatorPage() {
 
   // Pause/Stop simulation (server-side)
   const pauseSimulation = useCallback(async () => {
+    // Optimistically update UI first for responsiveness
+    setIsPaused(true);
+    setIsSimulating(false);
+    
     try {
-      await fetch('/api/simulator/stop', { method: 'POST' });
-      setIsPaused(true);
-      setIsSimulating(false);
-      addLog('⏸️ Simulation stopped');
+      const res = await fetch('/api/simulator/stop', { method: 'POST' });
+      if (!res.ok) {
+        throw new Error('Stop request failed');
+      }
+      // Server will add its own log, but we add one locally for immediate feedback
     } catch (error) {
       addLog('❌ Failed to stop simulation');
+      // Revert optimistic update on error
+      setIsSimulating(true);
+      setIsPaused(false);
     }
   }, [addLog]);
 
   // Kill process and reset to defaults
   const killAndReset = useCallback(async () => {
+    // Optimistically update UI first for responsiveness
+    setIsSimulating(false);
+    setIsPaused(false);
+    
     try {
-      await fetch('/api/simulator/kill', { method: 'POST' });
-      setIsSimulating(false);
-      setIsPaused(false);
+      const res = await fetch('/api/simulator/kill', { method: 'POST' });
+      if (!res.ok) {
+        throw new Error('Kill request failed');
+      }
+      
+      // Reset all local state
       setConfig({
         mode: 'random',
         totalStudents: 100,
@@ -479,11 +507,12 @@ export default function RegistrationSimulatorPage() {
         elapsedTime: 0,
       });
       setRegistrationHistory([]);
-      setLogs([]);
+      setLogs(['[' + new Date().toLocaleTimeString() + '] 🔴 Process killed and settings reset to defaults']);
+      
       // Clear localStorage as well
       localStorage.removeItem(STORAGE_KEYS.stats);
       localStorage.removeItem(STORAGE_KEYS.logs);
-      addLog('🔴 Process killed and settings reset to defaults');
+      localStorage.removeItem(STORAGE_KEYS.config);
     } catch (error) {
       addLog('❌ Failed to kill process');
     }
@@ -745,8 +774,9 @@ export default function RegistrationSimulatorPage() {
                       </label>
                       <input
                         type="number"
-                        value={config.totalStudents}
-                        onChange={(e) => setConfig(prev => ({ ...prev, totalStudents: parseInt(e.target.value) || 0 }))}
+                        value={config.totalStudents || ''}
+                        onChange={(e) => setConfig(prev => ({ ...prev, totalStudents: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
+                        onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) setConfig(prev => ({ ...prev, totalStudents: 1 })) }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                         min={1}
                         max={10000}
@@ -759,8 +789,9 @@ export default function RegistrationSimulatorPage() {
                       </label>
                       <input
                         type="number"
-                        value={config.coursesPerStudent}
-                        onChange={(e) => setConfig(prev => ({ ...prev, coursesPerStudent: parseInt(e.target.value) || 1 }))}
+                        value={config.coursesPerStudent || ''}
+                        onChange={(e) => setConfig(prev => ({ ...prev, coursesPerStudent: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
+                        onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) setConfig(prev => ({ ...prev, coursesPerStudent: 1 })) }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                         min={1}
                         max={10}
@@ -773,8 +804,9 @@ export default function RegistrationSimulatorPage() {
                       </label>
                       <input
                         type="number"
-                        value={config.studentsPerMinute}
-                        onChange={(e) => setConfig(prev => ({ ...prev, studentsPerMinute: parseInt(e.target.value) || 1 }))}
+                        value={config.studentsPerMinute || ''}
+                        onChange={(e) => setConfig(prev => ({ ...prev, studentsPerMinute: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
+                        onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) setConfig(prev => ({ ...prev, studentsPerMinute: 1 })) }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                         min={1}
                         max={1000}

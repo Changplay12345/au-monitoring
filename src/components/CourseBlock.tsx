@@ -22,6 +22,14 @@ export interface CSVCourse {
   instructor: string
 }
 
+interface StackNotification {
+  id: string
+  courseCode: string
+  change: number // +1 or -1
+  timestamp: number // For queue ordering
+  isActive: boolean // Whether this notification is currently animating
+}
+
 interface CourseBlockProps {
   course: CSVCourse
   startMin: number
@@ -30,6 +38,7 @@ interface CourseBlockProps {
   groupSpanMin?: number   // Timeline span (for positioning)
   stackIndex?: number
   stackTotal?: number
+  stackedCourses?: CSVCourse[]  // All courses in the stack for showing details
   onClick?: (course: CSVCourse) => void
 }
 
@@ -77,11 +86,74 @@ export function CourseBlock({
   groupSpanMin,
   stackIndex = 0,
   stackTotal = 1,
+  stackedCourses,
   onClick,
 }: CourseBlockProps) {
   const [isGlowing, setIsGlowing] = useState(false)
+  const [notificationQueue, setNotificationQueue] = useState<StackNotification[]>([])
+  const [activeNotification, setActiveNotification] = useState<StackNotification | null>(null)
+  const prevStackedSeatsRef = useRef<Map<string, number>>(new Map())
   
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Calculate block duration in minutes
+  const blockDuration = spanMin
+  const isLongBlock = blockDuration > 60 // Only show notifications for blocks > 1 hour
+  
+  // Animation duration based on block length - longer blocks = more time to slide
+  const animationDuration = Math.max(800, Math.min(1500, blockDuration * 10))
+  
+  // Delay between animations based on queue length - more queue = faster processing
+  const queueDelay = Math.max(300, 500 - notificationQueue.length * 50) // Min 300ms, base 500ms
+  
+  // Process queue - play one at a time with delay
+  useEffect(() => {
+    // Only process if no active notification and queue has items
+    if (activeNotification !== null || notificationQueue.length === 0) return
+    
+    // Take first from queue
+    const [next, ...rest] = notificationQueue
+    setActiveNotification(next)
+    setNotificationQueue(rest)
+    
+    // Remove active notification after animation completes + delay before next
+    const totalTime = animationDuration + queueDelay
+    const timer = setTimeout(() => {
+      setActiveNotification(null)
+    }, totalTime)
+    
+    return () => clearTimeout(timer)
+  }, [activeNotification, notificationQueue, animationDuration, queueDelay])
+  
+  // Track seat changes in stacked courses (not the top one)
+  useEffect(() => {
+    if (!stackedCourses || stackedCourses.length <= 1 || !isLongBlock) return
+    
+    // Skip the first course (top of stack) - only track hidden courses
+    const hiddenCourses = stackedCourses.slice(1)
+    
+    hiddenCourses.forEach(c => {
+      const key = `${c.courseCode}-${c.section}`
+      const prevSeat = prevStackedSeatsRef.current.get(key)
+      
+      if (prevSeat !== undefined && prevSeat !== c.seatLeft) {
+        const change = c.seatLeft - prevSeat
+        const now = Date.now()
+        const notification: StackNotification = {
+          id: `${key}-${now}`,
+          courseCode: c.courseCode,
+          change,
+          timestamp: now,
+          isActive: true,
+        }
+        
+        // Add to queue
+        setNotificationQueue(prev => [...prev, notification])
+      }
+      
+      prevStackedSeatsRef.current.set(key, c.seatLeft)
+    })
+  }, [stackedCourses, isLongBlock])
   
   // Handle seat change animation - trigger glow
   const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
@@ -162,12 +234,31 @@ export function CourseBlock({
         <AnimatedNumber value={course.seatLeft} onChangeDirection={handleSeatChange} />
       </span>
 
-      {/* Stack indicator */}
+      {/* Stack indicator - show count and unique prefixes */}
       {stackTotal > 1 && stackIndex === 0 && (
-        <span className="absolute bottom-1 left-2 text-xs text-gray-500 font-medium">
-          +{stackTotal - 1}
+        <span className="absolute bottom-1 left-2 text-[10px] text-gray-600 font-medium bg-white/80 px-1 rounded">
+          +{stackTotal - 1} more
         </span>
       )}
+      
+      {/* Floating notification - one at a time from queue (DISABLED - fix later)
+      {isLongBlock && stackTotal > 1 && activeNotification && (
+        <span
+          key={activeNotification.id}
+          className="absolute bottom-1 text-[10px] font-medium bg-white/90 border border-gray-200 px-1 rounded shadow-sm whitespace-nowrap animate-slide-right-fade"
+          style={{
+            left: '58px',
+            '--slide-distance': `${blockDuration * 1.2}px`, // 80% of block width (blockDuration ~= width in px for typical blocks)
+            animationDuration: `${animationDuration}ms`,
+            zIndex: 200,
+          } as React.CSSProperties}
+        >
+          <span className={activeNotification.change < 0 ? 'text-red-600' : 'text-emerald-600'}>
+            {activeNotification.courseCode} {activeNotification.change > 0 ? '+' : ''}{activeNotification.change}
+          </span>
+        </span>
+      )}
+      */}
     </div>
   )
 }

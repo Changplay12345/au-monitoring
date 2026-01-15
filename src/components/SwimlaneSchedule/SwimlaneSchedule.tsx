@@ -9,6 +9,16 @@ import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 
+// Format time string to HH:MM (removes seconds if present)
+function formatTime(time: string): string {
+  if (!time) return ''
+  const parts = time.split(':')
+  if (parts.length >= 2) {
+    return `${parts[0]}:${parts[1]}`
+  }
+  return time
+}
+
 // Time axis configuration
 const START_MIN = 7 * 60 + 30  // 07:30
 const END_MIN = 19 * 60 + 30   // 19:30
@@ -236,17 +246,17 @@ export function SwimlaneSchedule({ day, courses: propCourses = [] }: SwimlaneSch
                           Section {section.section}
                         </span>
                         <div className="text-xs text-gray-600 mt-1 space-y-0.5">
-                          <div>⏰ {section.startTime} - {section.endTime}</div>
+                          <div>⏰ {formatTime(section.startTime)} - {formatTime(section.endTime)}</div>
                           <div>👤 {section.instructor}</div>
                         </div>
                       </div>
                       <span className={cn(
-                        'px-2 py-1 rounded text-xs font-bold text-white',
+                        'px-2 py-1 rounded text-xs font-bold text-white inline-flex items-center',
                         ratio >= 0.5 ? 'bg-emerald-500' :
                         ratio >= 0.25 ? 'bg-amber-500' :
                         ratio > 0 ? 'bg-orange-500' : 'bg-red-500'
                       )}>
-                        <AnimatedNumber value={section.seatLeft} />/{section.seatLimit}
+                        <AnimatedNumber value={section.seatLeft} /><span>/{section.seatLimit}</span>
                       </span>
                     </div>
                   </div>

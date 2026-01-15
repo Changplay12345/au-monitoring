@@ -114,9 +114,8 @@ export function AnimatedNumber({ value, className = '', duration = 300, onChange
 
   return (
     <span 
-      className={`inline-flex font-mono tabular-nums ${className}`}
+      className={`inline-flex items-baseline tabular-nums ${className}`}
       style={{ 
-        lineHeight: 1,
         fontVariantNumeric: 'tabular-nums'
       }}
     >
@@ -125,8 +124,9 @@ export function AnimatedNumber({ value, className = '', duration = 300, onChange
           key={index}
           className="relative inline-block overflow-hidden"
           style={{ 
-            width: '0.6em',
-            height: '1.1em',
+            width: '0.55em',
+            height: '1em',
+            verticalAlign: 'baseline',
           }}
         >
           {digit.isAnimating ? (

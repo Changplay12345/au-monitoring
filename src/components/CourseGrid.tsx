@@ -23,6 +23,16 @@ function timeToMinutes(time: string): number {
   return h * 60 + (m || 0)
 }
 
+// Format time string to HH:MM (removes seconds if present)
+function formatTime(time: string): string {
+  if (!time) return ''
+  const parts = time.split(':')
+  if (parts.length >= 2) {
+    return `${parts[0]}:${parts[1]}`
+  }
+  return time
+}
+
 // Group overlapping courses (courses that overlap in ANY way, not just same time)
 interface CourseGroup {
   courses: CSVCourse[]
@@ -208,7 +218,7 @@ export function CourseGrid() {
   const groupByTime = (courses: CSVCourse[]) => {
     const timeGroups: Map<string, CSVCourse[]> = new Map()
     courses.forEach(course => {
-      const key = `${course.startTime} - ${course.endTime}`
+      const key = `${formatTime(course.startTime)} - ${formatTime(course.endTime)}`
       if (!timeGroups.has(key)) {
         timeGroups.set(key, [])
       }
@@ -313,7 +323,7 @@ export function CourseGrid() {
       prefixes: [...new Set(allCourses.map(c => c.prefix))].filter(Boolean).sort(),
       sections: [...new Set(filtered.map(c => c.section))].filter(Boolean).sort(),
       instructors: [...new Set(filtered.map(c => c.instructor))].filter(Boolean).sort(),
-      times: [...new Set(filtered.flatMap(c => [c.startTime, c.endTime]))].filter(Boolean).sort(),
+      times: [...new Set(filtered.flatMap(c => [formatTime(c.startTime), formatTime(c.endTime)]))].filter(Boolean).sort(),
     }
   }
 
@@ -339,6 +349,48 @@ export function CourseGrid() {
 
   // Check if any advanced filter is active
   const hasActiveFilters = Object.values(advancedFilters).some(v => v !== '')
+
+  // Compute analytics data by prefix
+  const analyticsData = useMemo(() => {
+    const prefixStats: Record<string, { total: number; full: number; almostFull: number; available: number; totalSeats: number; usedSeats: number }> = {}
+    
+    allCourses.forEach(course => {
+      const prefix = course.prefix || 'OTHER'
+      if (!prefixStats[prefix]) {
+        prefixStats[prefix] = { total: 0, full: 0, almostFull: 0, available: 0, totalSeats: 0, usedSeats: 0 }
+      }
+      
+      prefixStats[prefix].total++
+      prefixStats[prefix].totalSeats += course.seatLimit
+      prefixStats[prefix].usedSeats += course.seatUsed
+      
+      const ratio = course.seatLimit > 0 ? course.seatLeft / course.seatLimit : 0
+      if (course.seatLeft === 0) {
+        prefixStats[prefix].full++
+      } else if (ratio < 0.25) {
+        prefixStats[prefix].almostFull++
+      } else {
+        prefixStats[prefix].available++
+      }
+    })
+    
+    // Sort by total courses descending
+    const sorted = Object.entries(prefixStats)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 8) // Top 8 prefixes
+    
+    // Overall stats
+    const overall = {
+      totalCourses: allCourses.length,
+      fullCourses: allCourses.filter(c => c.seatLeft === 0).length,
+      almostFullCourses: allCourses.filter(c => c.seatLeft > 0 && c.seatLimit > 0 && c.seatLeft / c.seatLimit < 0.25).length,
+      availableCourses: allCourses.filter(c => c.seatLimit > 0 && c.seatLeft / c.seatLimit >= 0.25).length,
+      totalSeats: allCourses.reduce((sum, c) => sum + c.seatLimit, 0),
+      usedSeats: allCourses.reduce((sum, c) => sum + c.seatUsed, 0),
+    }
+    
+    return { prefixStats: sorted, overall }
+  }, [allCourses])
 
   // Handle search input change
   const handleSearchChange = (value: string) => {
@@ -518,10 +570,10 @@ export function CourseGrid() {
                         <span className="text-xs text-gray-500 truncate max-w-[150px]">{course.courseTitle}</span>
                       </div>
                       <span className={cn(
-                        "px-2 py-0.5 rounded text-xs font-bold text-white",
+                        "px-2 py-0.5 rounded text-xs font-bold text-white inline-flex items-center",
                         getSeatColor(course.seatLeft, course.seatLimit)
                       )}>
-                        <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleSearchGlow(courseId, dir)} />/{course.seatLimit}
+                        <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleSearchGlow(courseId, dir)} /><span>/{course.seatLimit}</span>
                       </span>
                     </button>
                   )
@@ -619,7 +671,7 @@ export function CourseGrid() {
           }}
         >
           {selectedGroup && (
-            <div className="flex flex-col max-h-[80vh]" style={{ width: `${POPUP_WIDTH}px` }}>
+<div className="flex flex-col" style={{ width: `${POPUP_WIDTH}px`, maxHeight: '530px' }}>
               {/* Panel header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
                 <h3 className="font-bold text-gray-800">Course Details</h3>
@@ -660,13 +712,13 @@ export function CourseGrid() {
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-gray-800">{course.courseCode}</span>
                               <span className={cn(
-                                "px-2 py-0.5 rounded text-xs font-bold text-white",
+                                "px-2 py-0.5 rounded text-xs font-bold text-white inline-flex items-center",
                                 course.seatLeft === 0 ? "bg-red-500" :
                                 course.seatLeft / course.seatLimit < 0.25 ? "bg-orange-500" :
                                 course.seatLeft / course.seatLimit < 0.5 ? "bg-amber-500" :
                                 "bg-emerald-500"
                               )}>
-                                <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleDetailGlow(courseId, dir)} />/{course.seatLimit}
+                                <AnimatedNumber value={course.seatLeft} onChangeDirection={(dir) => handleDetailGlow(courseId, dir)} /><span>/{course.seatLimit}</span>
                               </span>
                             </div>
                             <p className="text-xs text-gray-600 mt-1 line-clamp-2">{course.courseTitle}</p>
@@ -761,15 +813,24 @@ export function CourseGrid() {
                       // Use first filtered course as the display course
                       const displayCourse = filteredCourses[0]
                       
+                      // When filtering, use actual course times instead of group times
+                      // This prevents showing extended timeline for stacked courses
+                      const hasActiveFilter = searchInput.trim() || hasActiveFilters
+                      const courseStartMin = timeToMinutes(displayCourse.startTime)
+                      const courseEndMin = timeToMinutes(displayCourse.endTime)
+                      const useStartMin = hasActiveFilter ? courseStartMin : group.startMin
+                      const useSpanMin = hasActiveFilter ? (courseEndMin - courseStartMin) : (group.endMin - group.startMin)
+                      
                       return (
                         <CourseBlock
                           key={`${day}-group-${groupIdx}`}
                           course={displayCourse}
-                          startMin={group.startMin}
-                          spanMin={group.endMin - group.startMin}
+                          startMin={useStartMin}
+                          spanMin={useSpanMin}
                           groupStartMin={START_MIN}
                           groupSpanMin={SPAN_MIN}
                           stackTotal={filteredCourses.length}
+                          stackedCourses={filteredCourses}
                           onClick={() => handleCourseClick(filteredCourses)}
                         />
                       )
@@ -783,6 +844,95 @@ export function CourseGrid() {
         </div>
       </div>
       )}
+      </div>
+
+      {/* Analytics Frame - Full width, only visible on ALL day section */}
+      <div 
+        className={cn(
+          "bg-white border border-gray-200 rounded-2xl shadow-md overflow-hidden transition-all duration-500 ease-in-out",
+          filters.activeDay !== 'ALL' ? "opacity-0 translate-y-8 pointer-events-none h-0 mt-0 p-0 border-0" : "mt-4"
+        )}
+        style={{ marginLeft: '-350px', marginRight: '-350px', position: 'relative' }}
+      >
+        <div className="p-3 flex gap-4">
+          {/* Left side - Overall Stats */}
+          <div className="flex-1">
+            {/* Compact Stats Row */}
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <div className="bg-gray-50 rounded-md p-2 text-center">
+                <div className="text-lg font-bold text-gray-800"><AnimatedNumber value={analyticsData.overall.totalCourses} /></div>
+                <div className="text-[10px] text-gray-500">Total</div>
+              </div>
+              <div className="bg-red-50 rounded-md p-2 text-center">
+                <div className="text-lg font-bold text-red-600"><AnimatedNumber value={analyticsData.overall.fullCourses} /></div>
+                <div className="text-[10px] text-red-500">Full</div>
+              </div>
+              <div className="bg-orange-50 rounded-md p-2 text-center">
+                <div className="text-lg font-bold text-orange-600"><AnimatedNumber value={analyticsData.overall.almostFullCourses} /></div>
+                <div className="text-[10px] text-orange-500">&lt;25%</div>
+              </div>
+              <div className="bg-emerald-50 rounded-md p-2 text-center">
+                <div className="text-lg font-bold text-emerald-600"><AnimatedNumber value={analyticsData.overall.availableCourses} /></div>
+                <div className="text-[10px] text-emerald-500">≥25%</div>
+              </div>
+            </div>
+            
+            {/* Seat Overall Bar */}
+            {(() => {
+              const utilizationPercent = analyticsData.overall.totalSeats > 0 ? (analyticsData.overall.usedSeats / analyticsData.overall.totalSeats * 100) : 0
+              const barColor = utilizationPercent >= 90 ? 'bg-red-500' : utilizationPercent >= 75 ? 'bg-orange-500' : utilizationPercent >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+              return (
+                <div>
+                  <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                    <span>Seat Overall</span>
+                    <span><AnimatedNumber value={analyticsData.overall.usedSeats} /> / <AnimatedNumber value={analyticsData.overall.totalSeats} /> ({Math.round(utilizationPercent)}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${barColor} transition-all duration-500`}
+                      style={{ width: `${utilizationPercent}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+          
+          {/* Divider */}
+          <div className="w-px bg-gray-200" />
+          
+          {/* Right side - Prefix Breakdown (4x2 grid) */}
+          <div className="flex-1">
+            <div className="text-[10px] text-gray-500 mb-1.5">By Department/Prefix</div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {analyticsData.prefixStats.map(([prefix, stats]) => {
+                const fullPercent = stats.total > 0 ? (stats.full / stats.total * 100) : 0
+                const almostFullPercent = stats.total > 0 ? (stats.almostFull / stats.total * 100) : 0
+                const availablePercent = stats.total > 0 ? (stats.available / stats.total * 100) : 0
+                
+                return (
+                  <div key={prefix} className="bg-gray-50 rounded-md p-1.5">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="font-semibold text-gray-700 text-xs">{prefix}</span>
+                      <span className="text-[10px] text-gray-400"><AnimatedNumber value={stats.total} /></span>
+                    </div>
+                    {/* Stacked bar - animated */}
+                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden flex">
+                      <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${fullPercent}%` }} />
+                      <div className="h-full bg-orange-500 transition-all duration-500" style={{ width: `${almostFullPercent}%` }} />
+                      <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${availablePercent}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
+                      <span className="text-red-500"><AnimatedNumber value={stats.full} /></span>
+                      <span className="text-orange-500"><AnimatedNumber value={stats.almostFull} /></span>
+                      <span className="text-emerald-500"><AnimatedNumber value={stats.available} /></span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Advanced Filter Popup - Fixed position floating modal */}

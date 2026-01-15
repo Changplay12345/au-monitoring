@@ -6,6 +6,7 @@ const SOURCE_TABLE = 'data_vme'
 interface SimulatorState {
   isRunning: boolean
   sessionId: string | null
+  abortFlag: boolean  // New: explicit abort flag for async operations
   stats: {
     registeredStudents: number
     totalRegistrations: number
@@ -27,12 +28,14 @@ declare global {
   var __simulatorState: SimulatorState | undefined
   var __simulationTimeout: NodeJS.Timeout | null | undefined
   var __studentTimeouts: Map<number, NodeJS.Timeout> | undefined
+  var __simulatorAbortController: AbortController | undefined
 }
 
 // In-memory state (persists as long as server is running)
 const defaultState: SimulatorState = {
   isRunning: false,
   sessionId: null,
+  abortFlag: false,
   stats: {
     registeredStudents: 0,
     totalRegistrations: 0,
@@ -59,6 +62,9 @@ if (global.__simulationTimeout === undefined) {
 if (global.__studentTimeouts === undefined) {
   global.__studentTimeouts = new Map()
 }
+if (global.__simulatorAbortController === undefined) {
+  global.__simulatorAbortController = new AbortController()
+}
 
 const simulatorState = global.__simulatorState
 
@@ -83,15 +89,21 @@ export function addLog(message: string) {
 }
 
 export async function startSimulator(config: SimulatorState['config']): Promise<string> {
-  // If already running, stop first
+  // If already running, force stop first and wait a bit for cleanup
   if (simulatorState.isRunning) {
-    stopSimulator()
+    forceStopSimulator()
+    // Small delay to ensure cleanup completes
+    await new Promise(resolve => setTimeout(resolve, 100))
   }
 
   const sessionId = `sim_${Date.now()}`
   
+  // Create new abort controller for this session
+  global.__simulatorAbortController = new AbortController()
+  
   // Reset state
   simulatorState.isRunning = true
+  simulatorState.abortFlag = false
   simulatorState.sessionId = sessionId
   simulatorState.stats = {
     registeredStudents: 0,
@@ -106,11 +118,8 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
 
   addLog(`🚀 Starting parallel simulation: ${config.totalStudents} students, ${config.coursesPerStudent} courses each, ${config.studentsPerMinute} students/min`)
 
-  // Calculate timing for parallel execution
-  // Students per minute determines how many students START their registration per minute
-  // Each student registers their courses in parallel (not sequentially)
-  
-  const totalDurationMs = (config.totalStudents / config.studentsPerMinute) * 60 * 1000
+  // Store current session ID to check if we're still the active session
+  const currentSessionId = sessionId
   
   // Schedule all students with distributed start times
   for (let i = 1; i <= config.totalStudents; i++) {
@@ -121,8 +130,12 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
     const startDelay = Math.max(0, baseDelay + variance)
     
     const timeout = setTimeout(() => {
-      if (simulatorState.isRunning) {
-        registerStudentParallel(i)
+      // Check both isRunning AND that we're still the same session
+      // This prevents old session timeouts from firing after restart
+      if (simulatorState.isRunning && 
+          !simulatorState.abortFlag && 
+          simulatorState.sessionId === currentSessionId) {
+        registerStudentParallel(i, currentSessionId)
       }
     }, startDelay)
     
@@ -133,8 +146,13 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
 }
 
 // Register a single student - all their courses in parallel
-async function registerStudentParallel(studentNum: number) {
-  if (!simulatorState.isRunning) return
+async function registerStudentParallel(studentNum: number, expectedSessionId: string) {
+  // Triple check: isRunning, abortFlag, and session match
+  if (!simulatorState.isRunning || 
+      simulatorState.abortFlag || 
+      simulatorState.sessionId !== expectedSessionId) {
+    return
+  }
   
   simulatorState.activeStudents.add(studentNum)
   
@@ -165,8 +183,11 @@ async function registerStudentParallel(studentNum: number) {
       // Small random delay between course registrations (0-500ms)
       const delay = Math.random() * 500
       return new Promise<{ success: boolean; course: any }>(resolve => {
-        setTimeout(async () => {
-          if (!simulatorState.isRunning) {
+        const timeoutId = setTimeout(async () => {
+          // Check abort flag before each operation
+          if (!simulatorState.isRunning || 
+              simulatorState.abortFlag || 
+              simulatorState.sessionId !== expectedSessionId) {
             resolve({ success: false, course })
             return
           }
@@ -179,6 +200,12 @@ async function registerStudentParallel(studentNum: number) {
               .eq('Course Code', course['Course Code'])
               .eq('Section', course['Section'])
               .single()
+
+            // Check abort again after async operation
+            if (simulatorState.abortFlag || simulatorState.sessionId !== expectedSessionId) {
+              resolve({ success: false, course })
+              return
+            }
 
             if (fetchError || !currentData || currentData['Seat Left'] <= 0) {
               resolve({ success: false, course })
@@ -242,24 +269,68 @@ async function registerStudentParallel(studentNum: number) {
 }
 
 function checkCompletion() {
+  // Don't mark as complete if we've been aborted
+  if (simulatorState.abortFlag) return
+  
   if (simulatorState.stats.registeredStudents >= simulatorState.config.totalStudents) {
     addLog(`🎉 Simulation completed! ${simulatorState.stats.totalRegistrations} total registrations`)
     simulatorState.isRunning = false
   }
 }
 
-export function stopSimulator() {
+// Internal force stop - clears everything without logging
+function forceStopSimulator() {
+  // Set abort flag FIRST to stop all async operations
+  simulatorState.abortFlag = true
+  simulatorState.isRunning = false
+  
+  // Abort any pending fetch operations
+  if (global.__simulatorAbortController) {
+    global.__simulatorAbortController.abort()
+    global.__simulatorAbortController = new AbortController()
+  }
+  
   // Clear all pending student timeouts
   if (global.__studentTimeouts) {
     global.__studentTimeouts.forEach((timeout) => clearTimeout(timeout))
     global.__studentTimeouts.clear()
   }
+  
+  simulatorState.activeStudents.clear()
+}
+
+export function stopSimulator() {
+  // Set abort flag FIRST to stop all async operations immediately
+  simulatorState.abortFlag = true
   simulatorState.isRunning = false
+  
+  // Abort any pending fetch operations
+  if (global.__simulatorAbortController) {
+    global.__simulatorAbortController.abort()
+    global.__simulatorAbortController = new AbortController()
+  }
+  
+  // Clear all pending student timeouts
+  if (global.__studentTimeouts) {
+    global.__studentTimeouts.forEach((timeout) => clearTimeout(timeout))
+    global.__studentTimeouts.clear()
+  }
+  
   simulatorState.activeStudents.clear()
   addLog('⏹️ Simulation stopped')
 }
 
 export function killSimulator() {
+  // Set abort flag FIRST - this is critical
+  simulatorState.abortFlag = true
+  simulatorState.isRunning = false
+  
+  // Abort any pending fetch operations
+  if (global.__simulatorAbortController) {
+    global.__simulatorAbortController.abort()
+    global.__simulatorAbortController = new AbortController()
+  }
+  
   // Clear all pending student timeouts
   if (global.__studentTimeouts) {
     global.__studentTimeouts.forEach((timeout) => clearTimeout(timeout))
@@ -267,7 +338,6 @@ export function killSimulator() {
   }
   
   // Reset everything to defaults
-  simulatorState.isRunning = false
   simulatorState.sessionId = null
   simulatorState.stats = {
     registeredStudents: 0,
@@ -279,7 +349,12 @@ export function killSimulator() {
   simulatorState.logs = []
   simulatorState.activeStudents.clear()
   
+  // Log AFTER reset so it shows in fresh logs
   addLog('🔴 Process killed and reset')
+  
+  // Reset abort flag after everything is cleared
+  // This allows new simulations to start
+  simulatorState.abortFlag = false
 }
 
 export async function resetSimulator() {

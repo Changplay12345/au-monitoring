@@ -90,6 +90,30 @@ body {
   animation: shake 0.5s ease-in-out;
 }
 
+/* Slide right and fade animation for stacked course notifications */
+@keyframes slide-right-fade {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(calc(var(--slide-distance, 80px) * 0.8));
+  }
+  85% {
+    opacity: 0.3;
+    transform: translateX(var(--slide-distance, 80px));
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--slide-distance, 80px));
+  }
+}
+
+.animate-slide-right-fade {
+  animation: slide-right-fade 1s ease-out forwards;
+}
+
 /* ========================================
    TQF MASTER 2.0 STYLES
    ======================================== */
