@@ -138,6 +138,173 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
   return { bg: '#FFFFFF', border: '#E5E7EB', text: '#111827' };
 }
 
+// --- TQF Master 2.0 Layout Constants ---
+const COL_SPACING = 300;
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 100;
+const NODE_GAP = 120;
+const HEADER_Y = 0;
+const CONTENT_START_Y = 80;
+
+// --- Compute absolute positions for all course nodes (TQF-style column layout) ---
+interface PositionedNode {
+  course: CurriculumCourse;
+  x: number;
+  y: number;
+}
+
+interface ColumnHeader {
+  year: number;
+  semester: number;
+  x: number;
+  y: number;
+}
+
+function computeLayout(groups: SemesterGroup[]): { nodes: PositionedNode[]; headers: ColumnHeader[]; totalWidth: number; totalHeight: number } {
+  const nodes: PositionedNode[] = [];
+  const headers: ColumnHeader[] = [];
+  let maxHeight = 0;
+
+  // Sort groups and assign column indices
+  const sorted = [...groups].sort((a, b) => a.year !== b.year ? a.year - b.year : a.semester - b.semester);
+
+  sorted.forEach((group, colIndex) => {
+    const x = (colIndex + 1) * COL_SPACING;
+
+    // Column header
+    headers.push({ year: group.year, semester: group.semester, x, y: HEADER_Y });
+
+    // Course nodes stacked vertically
+    group.courses.forEach((course, rowIndex) => {
+      const y = CONTENT_START_Y + rowIndex * NODE_GAP;
+      nodes.push({ course, x, y });
+      if (y + NODE_HEIGHT > maxHeight) maxHeight = y + NODE_HEIGHT;
+    });
+  });
+
+  const totalWidth = (sorted.length + 2) * COL_SPACING;
+  const totalHeight = maxHeight + 100;
+
+  return { nodes, headers, totalWidth, totalHeight };
+}
+
+// --- Pannable Canvas Component (matches TQF Master 2.0 viewport behavior) ---
+function PannableCanvas({
+  children,
+  canvasWidth,
+  canvasHeight,
+  containerRef,
+}: {
+  children: React.ReactNode;
+  canvasWidth: number;
+  canvasHeight: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(0.8);
+  const isDragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+
+  // Fit view on mount / content change
+  useEffect(() => {
+    if (!containerRef.current || canvasWidth === 0) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const scaleX = rect.width / canvasWidth;
+    const scaleY = rect.height / canvasHeight;
+    const fitZoom = Math.min(scaleX, scaleY, 1) * 0.85;
+    const centerX = (rect.width - canvasWidth * fitZoom) / 2;
+    const centerY = (rect.height - canvasHeight * fitZoom) / 2;
+    setZoom(fitZoom);
+    setPan({ x: centerX, y: Math.max(centerY, 20) });
+  }, [canvasWidth, canvasHeight, containerRef]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    isDragging.current = true;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    e.preventDefault();
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.92 : 1.08;
+    const newZoom = Math.min(Math.max(zoom * delta, 0.2), 2);
+
+    // Zoom toward mouse position
+    const scale = newZoom / zoom;
+    setPan(prev => ({
+      x: mouseX - (mouseX - prev.x) * scale,
+      y: mouseY - (mouseY - prev.y) * scale,
+    }));
+    setZoom(newZoom);
+  }, [zoom, containerRef]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden select-none"
+      style={{
+        height: 'calc(100vh - 200px)',
+        cursor: isDragging.current ? 'grabbing' : 'grab',
+        background: '#FAFAFA',
+      }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onWheel={handleWheel}
+    >
+      {/* Grid background (matching TQF Master 2.0) */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            linear-gradient(#EBEBEB 1px, transparent 1px),
+            linear-gradient(90deg, #EBEBEB 1px, transparent 1px)
+          `,
+          backgroundSize: `${50 * zoom}px ${50 * zoom}px`,
+          backgroundPosition: `${pan.x % (50 * zoom)}px ${pan.y % (50 * zoom)}px`,
+        }}
+      />
+
+      {/* Transformed content layer */}
+      <div
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+        }}
+      >
+        {children}
+      </div>
+
+      {/* Zoom indicator */}
+      <div className="absolute bottom-3 right-3 bg-white/80 border border-gray-200 rounded-md px-2 py-1 text-[10px] text-gray-500 pointer-events-none">
+        {Math.round(zoom * 100)}%
+      </div>
+    </div>
+  );
+}
+
 // --- Main Component ---
 export default function TestingPage() {
   const router = useRouter();
@@ -155,8 +322,9 @@ export default function TestingPage() {
   const [studyPlanLoaded, setStudyPlanLoaded] = useState(false);
   const [csvLoaded, setCsvLoaded] = useState(false);
 
-  // File input ref
+  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Auth check
   useEffect(() => {
@@ -165,7 +333,7 @@ export default function TestingPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load CSV when major changes (preload data, but don't show study plan yet)
+  // Load CSV when major changes
   useEffect(() => {
     if (!selectedMajor) {
       setCurriculum([]);
@@ -203,17 +371,15 @@ export default function TestingPage() {
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.type !== 'application/pdf') {
       setError('Please upload a PDF file only.');
       return;
     }
-
     setPdfFile(file);
     setError(null);
   }, []);
 
-  // Handle Crosscheck button - temporarily just loads and renders study plan
+  // Handle Crosscheck - temporarily just renders study plan
   const handleCrosscheck = useCallback(async () => {
     if (!selectedMajor) {
       setError('Please select a major first.');
@@ -223,28 +389,18 @@ export default function TestingPage() {
       setError('Curriculum data not loaded yet.');
       return;
     }
-
     setIsProcessing(true);
     setError(null);
-
-    // Simulate brief loading for UX
     await new Promise(resolve => setTimeout(resolve, 400));
-
     setStudyPlanLoaded(true);
     setIsProcessing(false);
   }, [selectedMajor, csvLoaded, curriculum]);
 
-  // Loading states
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <DustBackgroundLight particleMultiplier={0.5} />
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
-      </div>
-    );
-  }
+  // Compute layout positions
+  const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
 
-  if (!isAuthenticated) {
+  // Loading states
+  if (authLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <DustBackgroundLight particleMultiplier={0.5} />
@@ -257,11 +413,12 @@ export default function TestingPage() {
     <>
       <DustBackgroundLight particleMultiplier={0.5} />
       <GCPLayout activeFeature="Testing" projectName="Testing">
-        <div className="max-w-[1920px] mx-auto p-4 sm:p-6">
+        {/* Locked centered container with horizontal padding */}
+        <div className="max-w-[1600px] mx-auto px-6 py-5">
           {/* Page Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <GraduationCap className="w-7 h-7 text-red-600" />
+          <div className="mb-5">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <GraduationCap className="w-6 h-6 text-red-600" />
               Graduation Course Cross-Check
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
@@ -269,11 +426,12 @@ export default function TestingPage() {
             </p>
           </div>
 
-          {/* 3-column layout: 15% | 70% | 15% */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* ===== LEFT PANEL (15%) - Input Panel ===== */}
-            <div className="w-full lg:w-[15%] flex-shrink-0">
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-4 sticky top-20">
+          {/* 3-column layout: 15% | 70% | 15% — with explicit gap and contained boundaries */}
+          <div className="flex flex-col lg:flex-row gap-3">
+
+            {/* ===== LEFT PANEL (15%) ===== */}
+            <div className="w-full lg:w-[15%] lg:min-w-[180px] flex-shrink-0">
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-red-500" />
                   Input
@@ -281,9 +439,7 @@ export default function TestingPage() {
 
                 {/* Major Dropdown */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Major
-                  </label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Major</label>
                   <div className="relative">
                     <select
                       value={selectedMajor}
@@ -296,9 +452,7 @@ export default function TestingPage() {
                     >
                       <option value="">-- Choose --</option>
                       {MAJORS.map(m => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
+                        <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -307,26 +461,16 @@ export default function TestingPage() {
 
                 {/* File Upload */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Transcript (PDF)
-                  </label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Transcript (PDF)</label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
                     className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer hover:border-red-400 hover:bg-red-50/30 transition-all group"
                   >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
+                    <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
                     {pdfFile ? (
                       <div className="flex items-center gap-1.5 justify-center">
                         <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 truncate">
-                          {pdfFile.name}
-                        </span>
+                        <span className="text-xs text-gray-700 truncate">{pdfFile.name}</span>
                       </div>
                     ) : (
                       <>
@@ -344,15 +488,9 @@ export default function TestingPage() {
                   className="w-full flex items-center justify-center gap-1.5 bg-red-600 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isProcessing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Loading...
-                    </>
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading...</>
                   ) : (
-                    <>
-                      <Search className="w-3.5 h-3.5" />
-                      Crosscheck
-                    </>
+                    <><Search className="w-3.5 h-3.5" /> Crosscheck</>
                   )}
                 </button>
 
@@ -371,7 +509,7 @@ export default function TestingPage() {
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded border" style={{ background: '#FFFFFF', borderColor: '#E5E7EB' }} />
-                        <span className="text-xs text-gray-600">Required Course</span>
+                        <span className="text-xs text-gray-600">Required</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded border" style={{ background: '#EBF4FF', borderColor: '#93C5FD' }} />
@@ -391,13 +529,13 @@ export default function TestingPage() {
               </div>
             </div>
 
-            {/* ===== MIDDLE PANEL (70%) - Study Plan Visualization ===== */}
-            <div className="w-full lg:w-[70%] flex-shrink-0">
+            {/* ===== MIDDLE PANEL (70%) — TQF-Style Pannable Canvas ===== */}
+            <div className="w-full lg:flex-1 min-w-0">
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 {/* Panel Header */}
-                <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-red-500" />
+                <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-red-500" />
                     Study Plan
                     {studyPlanLoaded && (
                       <span className="text-xs font-normal text-gray-400 ml-1">
@@ -406,121 +544,100 @@ export default function TestingPage() {
                     )}
                   </h2>
                   {studyPlanLoaded && (
-                    <span className="text-xs text-gray-400">
-                      {curriculum.length} courses
-                    </span>
+                    <span className="text-xs text-gray-400">{curriculum.length} courses · drag to pan · scroll to zoom</span>
                   )}
                 </div>
 
                 {!studyPlanLoaded ? (
-                  <div className="flex flex-col items-center justify-center h-[600px] text-gray-400">
+                  <div className="flex flex-col items-center justify-center text-gray-400" style={{ height: 'calc(100vh - 200px)' }}>
                     <BookOpen className="w-14 h-14 mb-4 opacity-30" />
                     <p className="text-sm font-medium">No study plan loaded</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Select a major and click Crosscheck to render the study plan
-                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Select a major and click Crosscheck</p>
                   </div>
-                ) : (
-                  <div className="p-5 max-h-[calc(100vh-220px)] overflow-y-auto">
-                    {/* Study plan grid - 2 semesters per row (matching TQF Master 2.0 column layout) */}
-                    {[1, 2, 3, 4].map(year => {
-                      const yearGroups = semesterGroups.filter(g => g.year === year);
-                      if (yearGroups.length === 0) return null;
+                ) : layout && (
+                  <PannableCanvas
+                    canvasWidth={layout.totalWidth}
+                    canvasHeight={layout.totalHeight}
+                    containerRef={canvasContainerRef}
+                  >
+                    {/* Column Headers — TQF Master 2.0 style */}
+                    {layout.headers.map(header => (
+                      <div
+                        key={`header-${header.year}-${header.semester}`}
+                        className="absolute flex items-center justify-center"
+                        style={{
+                          left: header.x,
+                          top: header.y,
+                          width: NODE_WIDTH,
+                          height: 50,
+                        }}
+                      >
+                        <div className="text-sm leading-tight font-semibold" style={{ color: '#1a1a2e' }}>
+                          {header.year}<sup className="text-[10px]">{getOrdinal(header.year)}</sup> Year {header.semester}<sup className="text-[10px]">{getOrdinal(header.semester)}</sup> Sem
+                        </div>
+                      </div>
+                    ))}
 
+                    {/* Course Nodes — TQF Master 2.0 card style */}
+                    {layout.nodes.map((node, idx) => {
+                      const style = getCourseStyle(node.course);
                       return (
-                        <div key={year} className="mb-8 last:mb-0">
-                          {/* Year Header */}
-                          <div className="mb-4">
-                            <h3 className="text-base font-semibold" style={{ color: '#1a1a2e' }}>
-                              {year}<sup className="text-xs">{getOrdinal(year)}</sup> Year
-                            </h3>
-                            <div className="h-0.5 bg-gradient-to-r from-red-500 to-transparent mt-1 rounded-full" />
-                          </div>
+                        <div
+                          key={`node-${node.course.courseCode || node.course.courseTitle}-${idx}`}
+                          className="absolute flex flex-col justify-center relative"
+                          style={{
+                            left: node.x,
+                            top: node.y,
+                            width: NODE_WIDTH,
+                            height: NODE_HEIGHT,
+                            background: style.bg,
+                            border: `1px solid ${style.border}`,
+                            borderRadius: '6px',
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
+                            padding: '8px 12px',
+                          }}
+                        >
+                          {/* OR badge (matching TQF Master 2.0) */}
+                          {node.course.orFlag === 'or' && (
+                            <div
+                              className="absolute -top-2 -left-2 text-white text-[11px] font-bold px-1.5 py-0.5 shadow-lg z-10 -rotate-12 pointer-events-none"
+                              style={{ background: '#DC2626', borderRadius: '999px', padding: '2px 6px', fontSize: '11px' }}
+                            >
+                              OR
+                            </div>
+                          )}
 
-                          {/* Semesters side by side */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {yearGroups.map(group => (
-                              <div key={`${group.year}-${group.semester}`}>
-                                {/* Semester label */}
-                                <div className="mb-3 text-center">
-                                  <span className="text-sm font-semibold px-4 py-1 rounded-full" style={{ color: '#1a1a2e', background: '#f3f4f6' }}>
-                                    {group.semester}<sup className="text-xs">{getOrdinal(group.semester)}</sup> Semester
-                                  </span>
-                                </div>
-
-                                {/* Course cards - TQF Master 2.0 style */}
-                                <div className="space-y-2">
-                                  {group.courses.map((course, idx) => {
-                                    const style = getCourseStyle(course);
-                                    return (
-                                      <div
-                                        key={`${course.courseCode || course.courseTitle}-${idx}`}
-                                        className="relative rounded-md px-3 py-2.5 transition-all hover:shadow-md"
-                                        style={{
-                                          background: style.bg,
-                                          border: `1px solid ${style.border}`,
-                                          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                                        }}
-                                      >
-                                        {/* OR badge */}
-                                        {course.orFlag === 'or' && (
-                                          <div
-                                            className="absolute -top-1.5 -left-1.5 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow z-10 -rotate-12"
-                                            style={{ background: '#DC2626' }}
-                                          >
-                                            OR
-                                          </div>
-                                        )}
-
-                                        <div className="text-center">
-                                          {/* Course code */}
-                                          <div className="font-semibold text-sm leading-tight" style={{ color: style.text }}>
-                                            {course.courseCode || course.courseTitle}
-                                          </div>
-                                          {/* Course title (only if code exists) */}
-                                          {course.courseCode && (
-                                            <div className="text-xs mt-0.5 leading-tight" style={{ color: style.text, opacity: 0.7 }}>
-                                              {course.courseTitle}
-                                            </div>
-                                          )}
-                                          {/* Prerequisite */}
-                                          {course.prerequisite && (
-                                            <div className="text-[10px] mt-1 text-gray-400">
-                                              Prereq: {course.prerequisite}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                          <div className="text-center">
+                            <div className="font-semibold text-base leading-tight break-words" style={{ color: style.text }}>
+                              {node.course.courseCode || node.course.courseTitle}
+                            </div>
+                            {node.course.courseCode && (
+                              <div className="text-sm mt-1 leading-tight break-words" style={{ color: style.text, opacity: 0.75 }}>
+                                {node.course.courseTitle}
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
                       );
                     })}
-                  </div>
+                  </PannableCanvas>
                 )}
               </div>
             </div>
 
-            {/* ===== RIGHT PANEL (15%) - Reserved Panel ===== */}
-            <div className="w-full lg:w-[15%] flex-shrink-0">
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 min-h-[600px] sticky top-20">
-                <h2 className="text-sm font-semibold text-gray-800 mb-4">
-                  Analytics
-                </h2>
-                <div className="flex flex-col items-center justify-center h-[400px] text-gray-300">
+            {/* ===== RIGHT PANEL (15%) ===== */}
+            <div className="w-full lg:w-[15%] lg:min-w-[180px] flex-shrink-0">
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 min-h-[400px]">
+                <h2 className="text-sm font-semibold text-gray-800 mb-4">Analytics</h2>
+                <div className="flex flex-col items-center justify-center h-[300px] text-gray-300">
                   <div className="w-12 h-12 rounded-full border-2 border-dashed border-gray-200 flex items-center justify-center mb-2">
                     <AlertCircle className="w-5 h-5" />
                   </div>
-                  <p className="text-xs text-gray-400 text-center">
-                    Reserved for future use
-                  </p>
+                  <p className="text-xs text-gray-400 text-center">Reserved for future use</p>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       </GCPLayout>
