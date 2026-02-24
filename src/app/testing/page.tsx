@@ -32,6 +32,26 @@ interface SemesterGroup {
   courses: CurriculumCourse[];
 }
 
+// --- Parsed Transcript Types ---
+interface TranscriptCourse {
+  code: string;
+  credits: number;
+}
+
+interface TranscriptSemester {
+  semesterLabel: string;
+  courses: TranscriptCourse[];
+}
+
+interface ParsedTranscript {
+  student: {
+    name: string;
+    id: string;
+    major: string;
+  };
+  semesters: TranscriptSemester[];
+}
+
 // --- Vincent Mary School of Engineering Majors ---
 const MAJORS = [
   { value: 'science', label: 'Computer Science', csvFile: 'science.csv' },
@@ -115,6 +135,86 @@ function groupBySemester(courses: CurriculumCourse[]): SemesterGroup[] {
   return Array.from(map.values()).sort((a, b) =>
     a.year !== b.year ? a.year - b.year : a.semester - b.semester
   );
+}
+
+// --- PDF Text Extraction (pdfjs-dist) ---
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+  const version = pdfjsLib.version || '5.4.624';
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const item of content.items) {
+      if (!('str' in item)) continue;
+      const t = item as { str: string; hasEOL?: boolean };
+      currentLine += t.str;
+      if (t.hasEOL) {
+        lines.push(currentLine.trim());
+        currentLine = '';
+      }
+    }
+    if (currentLine.trim()) lines.push(currentLine.trim());
+    pages.push(lines.join('\n'));
+  }
+
+  return pages.join('\n\n');
+}
+
+// --- Transcript Text Parser ---
+function parseTranscriptText(text: string): ParsedTranscript | null {
+  // Extract student ID (first 7-digit number)
+  const idMatch = text.match(/\b(\d{7})\b/);
+  if (!idMatch) return null;
+
+  // Extract name (uppercase line)
+  const nameMatch = text.match(/\n([A-Z][A-Z\s]{3,}[A-Z])\n/);
+
+  // Extract major
+  const majorMatch = text.match(/([A-Z][A-Z\s]+ENGINEERING)/);
+
+  // Split by semester labels
+  const semesterLabels = text.match(/SEMESTER\s+\d\/\d{4}/g) || [];
+  const semesterSections = text.split(/SEMESTER\s+\d\/\d{4}/);
+
+  const semesters: TranscriptSemester[] = [];
+
+  for (let i = 0; i < semesterLabels.length; i++) {
+    const section = semesterSections[i + 1] || '';
+    // Match course code (2-4 uppercase + 4 digits) followed by credits
+    const courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})\s+.*?(\d)\s*CR\./g)];
+
+    const courses: TranscriptCourse[] = courseMatches.map(m => ({
+      code: m[1],
+      credits: parseInt(m[2]),
+    }));
+
+    if (courses.length > 0) {
+      semesters.push({ semesterLabel: semesterLabels[i], courses });
+    }
+  }
+
+  console.log('[Transcript Parser] ID:', idMatch[1]);
+  console.log('[Transcript Parser] Semesters found:', semesters.length);
+  console.log('[Transcript Parser] Total courses:', semesters.reduce((s, sem) => s + sem.courses.length, 0));
+
+  return {
+    student: {
+      name: nameMatch ? nameMatch[1].trim() : 'Unknown',
+      id: idMatch[1],
+      major: majorMatch ? majorMatch[1].trim() : 'Unknown',
+    },
+    semesters,
+  };
 }
 
 // --- Helper: get ordinal suffix (matching TQF Master 2.0 style) ---
@@ -354,6 +454,10 @@ export default function TestingPage() {
   const [studyPlanLoaded, setStudyPlanLoaded] = useState(false);
   const [csvLoaded, setCsvLoaded] = useState(false);
 
+  // Crosscheck state
+  const [completedCourses, setCompletedCourses] = useState<Set<string>>(new Set());
+  const [parsedTranscript, setParsedTranscript] = useState<ParsedTranscript | null>(null);
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -372,6 +476,8 @@ export default function TestingPage() {
       setSemesterGroups([]);
       setCsvLoaded(false);
       setStudyPlanLoaded(false);
+      setParsedTranscript(null);
+      setCompletedCourses(new Set());
       return;
     }
 
@@ -411,7 +517,7 @@ export default function TestingPage() {
     setError(null);
   }, []);
 
-  // Handle Crosscheck - temporarily just renders study plan
+  // Handle Crosscheck — parse PDF + cross-check against study plan
   const handleCrosscheck = useCallback(async () => {
     if (!selectedMajor) {
       setError('Please select a major first.');
@@ -421,12 +527,42 @@ export default function TestingPage() {
       setError('Curriculum data not loaded yet.');
       return;
     }
+
     setIsProcessing(true);
     setError(null);
-    await new Promise(resolve => setTimeout(resolve, 400));
-    setStudyPlanLoaded(true);
-    setIsProcessing(false);
-  }, [selectedMajor, csvLoaded, curriculum]);
+    setParsedTranscript(null);
+    setCompletedCourses(new Set());
+
+    try {
+      if (pdfFile) {
+        const text = await extractPdfText(pdfFile);
+        console.log('[PDF Parser] Extracted text (first 600 chars):', text.substring(0, 600));
+
+        const parsed = parseTranscriptText(text);
+        if (!parsed) {
+          setError('Could not parse transcript. No 7-digit student ID found.');
+          setIsProcessing(false);
+          return;
+        }
+
+        console.log('[PDF Parser] Parsed transcript:', JSON.stringify(parsed, null, 2));
+        setParsedTranscript(parsed);
+
+        // Build completed course set from ALL parsed semesters
+        const completed = new Set(
+          parsed.semesters.flatMap(s => s.courses.map(c => c.code))
+        );
+        setCompletedCourses(completed);
+        console.log('[Crosscheck] Completed courses:', [...completed]);
+      }
+
+      setStudyPlanLoaded(true);
+    } catch (err) {
+      setError(`PDF parsing failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedMajor, csvLoaded, curriculum, pdfFile]);
 
   // Compute layout positions
   const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
@@ -479,6 +615,8 @@ export default function TestingPage() {
                         setSelectedMajor(e.target.value);
                         setError(null);
                         setStudyPlanLoaded(false);
+                        setParsedTranscript(null);
+                        setCompletedCourses(new Set());
                       }}
                       className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-2 pr-8 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     >
@@ -555,6 +693,10 @@ export default function TestingPage() {
                         <div className="w-3 h-3 rounded border" style={{ background: '#FFFBEB', borderColor: '#FCD34D' }} />
                         <span className="text-xs text-gray-600">OR Choice</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded" style={{ background: '#F0FDF4', border: '2px solid #16a34a' }} />
+                        <span className="text-xs text-gray-600">Completed</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -615,22 +757,24 @@ export default function TestingPage() {
                       </div>
                     ))}
 
-                    {/* Course Nodes — TQF Master 2.0 card style */}
+                    {/* Course Nodes — with crosscheck completion state */}
                     {layout.nodes.map((node, idx) => {
                       const style = getCourseStyle(node.course);
+                      const isCompleted = !!(node.course.courseCode && completedCourses.has(node.course.courseCode));
                       return (
                         <div
                           key={`node-${node.course.courseCode || node.course.courseTitle}-${idx}`}
+                          data-course={node.course.courseCode || undefined}
                           style={{
                             position: 'absolute',
                             left: node.x,
                             top: node.y,
                             width: COLUMN_WIDTH,
                             height: CARD_HEIGHT,
-                            background: style.bg,
-                            border: `1px solid ${style.border}`,
+                            background: isCompleted ? '#F0FDF4' : style.bg,
+                            border: isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
                             borderRadius: '6px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                            boxShadow: isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
                             display: 'grid',
                             placeItems: 'center',
                             margin: 0,
@@ -638,7 +782,25 @@ export default function TestingPage() {
                             overflow: 'visible',
                           }}
                         >
-                          {/* OR badge (matching TQF Master 2.0) */}
+                          {/* Completed checkmark */}
+                          {isCompleted && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 6,
+                                fontSize: 14,
+                                color: '#16a34a',
+                                fontWeight: 'bold',
+                                lineHeight: 1,
+                                pointerEvents: 'none',
+                              }}
+                            >
+                              ✓
+                            </span>
+                          )}
+
+                          {/* OR badge */}
                           {node.course.orFlag === 'or' && (
                             <div
                               className="absolute -top-2 -left-2 text-white text-[11px] font-bold px-1.5 py-0.5 shadow-lg z-10 -rotate-12 pointer-events-none"
@@ -649,11 +811,11 @@ export default function TestingPage() {
                           )}
 
                           <div className="text-center">
-                            <div className="font-semibold text-sm leading-tight break-words" style={{ color: style.text }}>
+                            <div className="font-semibold text-sm leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text }}>
                               {node.course.courseCode || node.course.courseTitle}
                             </div>
                             {node.course.courseCode && (
-                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: style.text, opacity: 0.75 }}>
+                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text, opacity: 0.75 }}>
                                 {node.course.courseTitle}
                               </div>
                             )}
@@ -666,16 +828,60 @@ export default function TestingPage() {
               </div>
             </div>
 
-            {/* ===== RIGHT PANEL (15%) ===== */}
+            {/* ===== RIGHT PANEL (15%) — Analytics ===== */}
             <div className="w-full lg:w-[14%] lg:min-w-[170px] lg:max-w-[220px] flex-shrink-0">
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 min-h-[400px]">
-                <h2 className="text-sm font-semibold text-gray-800 mb-4">Analytics</h2>
-                <div className="flex flex-col items-center justify-center h-[300px] text-gray-300">
-                  <div className="w-12 h-12 rounded-full border-2 border-dashed border-gray-200 flex items-center justify-center mb-2">
-                    <AlertCircle className="w-5 h-5" />
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4" style={{ maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
+                <h2 className="text-sm font-semibold text-gray-800 mb-3">Analytics</h2>
+
+                {parsedTranscript ? (
+                  <div className="space-y-3">
+                    {/* Student Info */}
+                    <div className="space-y-1.5">
+                      <div>
+                        <div className="text-[10px] font-medium text-gray-400 uppercase">Name</div>
+                        <div className="text-xs font-semibold text-gray-800">{parsedTranscript.student.name}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-medium text-gray-400 uppercase">ID</div>
+                        <div className="text-xs font-semibold text-gray-800">{parsedTranscript.student.id}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-medium text-gray-400 uppercase">Major</div>
+                        <div className="text-xs font-semibold text-gray-800 leading-tight">{parsedTranscript.student.major}</div>
+                      </div>
+                    </div>
+
+                    {/* Completion Summary */}
+                    <div className="border-t border-gray-100 pt-2">
+                      <div className="text-[10px] font-medium text-gray-400 uppercase mb-1">Completion</div>
+                      <div className="text-xs text-gray-700">
+                        <span className="font-bold text-green-700">{completedCourses.size}</span>{' '}
+                        / {curriculum.filter(c => c.courseCode).length} courses matched
+                      </div>
+                    </div>
+
+                    {/* Semester Breakdown */}
+                    <div className="border-t border-gray-100 pt-2 space-y-2">
+                      {parsedTranscript.semesters.map((sem, i) => (
+                        <div key={i}>
+                          <div className="text-[10px] font-bold text-gray-500 mb-0.5">{sem.semesterLabel}</div>
+                          {sem.courses.map((c, j) => (
+                            <div key={j} className="text-[11px] text-gray-600 font-mono leading-relaxed">
+                              {c.code} {c.credits} CR.
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 text-center">Reserved for future use</p>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-gray-300">
+                    <div className="w-12 h-12 rounded-full border-2 border-dashed border-gray-200 flex items-center justify-center mb-2">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs text-gray-400 text-center">Upload transcript PDF and click Crosscheck</p>
+                  </div>
+                )}
               </div>
             </div>
 
