@@ -38,9 +38,9 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Prevent body scroll when sidebar is open
+  // Prevent body scroll when sidebar is open or logging out
   useEffect(() => {
-    if (isSidebarOpen) {
+    if (isSidebarOpen || isLoggingOut) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
@@ -48,7 +48,7 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
     return () => {
       document.body.style.overflow = ''
     }
-  }, [isSidebarOpen])
+  }, [isSidebarOpen, isLoggingOut])
 
   // Handle navigation to external feature
   const handleNavigate = (url: string, label: string) => {
@@ -72,11 +72,11 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
     }`}>
       {/* Logout transition overlay - same style as signing in */}
       <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 ${
+        className={`fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 overflow-hidden ${
           isLoggingOut ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className={`text-center transform transition-all duration-500 ${
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center transform transition-all duration-500 ${
           isLoggingOut ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
         }`}>
           {/* Animated logo - fixed height container, logo can overflow without affecting layout */}
@@ -86,7 +86,7 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
             <img
               src="/au-monitoring-logo2.png"
               alt="AU Monitoring Logo"
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 object-contain rounded-full z-10 animate-pulse bg-white"
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 object-contain rounded-full z-10 animate-pulse bg-white p-1"
             />
           </div>
           {/* Loading spinner */}

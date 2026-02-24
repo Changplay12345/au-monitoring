@@ -2,11 +2,12 @@ import { createServerClient } from './supabase'
 
 const TEST_TABLE = 'data_vme_test'
 const SOURCE_TABLE = 'data_vme'
+const CONTROL_TABLE = 'simulator_control'
 
 interface SimulatorState {
   isRunning: boolean
   sessionId: string | null
-  abortFlag: boolean  // New: explicit abort flag for async operations
+  abortFlag: boolean
   stats: {
     registeredStudents: number
     totalRegistrations: number
@@ -68,6 +69,53 @@ if (global.__simulatorAbortController === undefined) {
 
 const simulatorState = global.__simulatorState
 
+// Helper to check if simulation should be aborted (checks database in production)
+async function shouldAbort(sessionId: string): Promise<boolean> {
+  // First check local abort flag
+  if (simulatorState.abortFlag || simulatorState.sessionId !== sessionId) {
+    return true
+  }
+  
+  // In production, also check database for abort signal
+  try {
+    const supabase = createServerClient()
+    const { data } = await supabase
+      .from(CONTROL_TABLE)
+      .select('should_stop, session_id')
+      .eq('id', 1)
+      .single()
+    
+    if (data) {
+      // Abort if stop flag is set OR if session ID doesn't match
+      if (data.should_stop || (data.session_id && data.session_id !== sessionId)) {
+        simulatorState.abortFlag = true
+        return true
+      }
+    }
+  } catch (error) {
+    // If table doesn't exist or error, continue with local state only
+  }
+  
+  return false
+}
+
+// Helper to set abort flag in database
+async function setAbortFlag(shouldStop: boolean, sessionId: string | null = null) {
+  try {
+    const supabase = createServerClient()
+    await supabase
+      .from(CONTROL_TABLE)
+      .upsert({ 
+        id: 1, 
+        should_stop: shouldStop, 
+        session_id: sessionId,
+        updated_at: new Date().toISOString()
+      })
+  } catch (error) {
+    // Ignore errors - table might not exist
+  }
+}
+
 export function getSimulatorState() {
   // Update elapsed time if running
   if (simulatorState.isRunning && simulatorState.stats.startTime) {
@@ -100,6 +148,9 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
   
   // Create new abort controller for this session
   global.__simulatorAbortController = new AbortController()
+  
+  // Clear any previous abort flags in database and set new session
+  await setAbortFlag(false, sessionId)
   
   // Reset state
   simulatorState.isRunning = true
@@ -147,10 +198,15 @@ export async function startSimulator(config: SimulatorState['config']): Promise<
 
 // Register a single student - all their courses in parallel
 async function registerStudentParallel(studentNum: number, expectedSessionId: string) {
-  // Triple check: isRunning, abortFlag, and session match
+  // Check local state first
   if (!simulatorState.isRunning || 
       simulatorState.abortFlag || 
       simulatorState.sessionId !== expectedSessionId) {
+    return
+  }
+  
+  // Check database abort flag (for production serverless)
+  if (await shouldAbort(expectedSessionId)) {
     return
   }
   
@@ -184,10 +240,11 @@ async function registerStudentParallel(studentNum: number, expectedSessionId: st
       const delay = Math.random() * 500
       return new Promise<{ success: boolean; course: any }>(resolve => {
         const timeoutId = setTimeout(async () => {
-          // Check abort flag before each operation
+          // Check abort flag before each operation (local + database)
           if (!simulatorState.isRunning || 
               simulatorState.abortFlag || 
-              simulatorState.sessionId !== expectedSessionId) {
+              simulatorState.sessionId !== expectedSessionId ||
+              await shouldAbort(expectedSessionId)) {
             resolve({ success: false, course })
             return
           }
@@ -201,8 +258,10 @@ async function registerStudentParallel(studentNum: number, expectedSessionId: st
               .eq('Section', course['Section'])
               .single()
 
-            // Check abort again after async operation
-            if (simulatorState.abortFlag || simulatorState.sessionId !== expectedSessionId) {
+            // Check abort again after async operation (local + database)
+            if (simulatorState.abortFlag || 
+                simulatorState.sessionId !== expectedSessionId ||
+                await shouldAbort(expectedSessionId)) {
               resolve({ success: false, course })
               return
             }
@@ -299,10 +358,13 @@ function forceStopSimulator() {
   simulatorState.activeStudents.clear()
 }
 
-export function stopSimulator() {
+export async function stopSimulator() {
   // Set abort flag FIRST to stop all async operations immediately
   simulatorState.abortFlag = true
   simulatorState.isRunning = false
+  
+  // Set abort flag in database for production serverless
+  await setAbortFlag(true, simulatorState.sessionId)
   
   // Abort any pending fetch operations
   if (global.__simulatorAbortController) {
@@ -320,10 +382,13 @@ export function stopSimulator() {
   addLog('⏹️ Simulation stopped')
 }
 
-export function killSimulator() {
+export async function killSimulator() {
   // Set abort flag FIRST - this is critical
   simulatorState.abortFlag = true
   simulatorState.isRunning = false
+  
+  // Set abort flag in database for production serverless - use null session to invalidate all
+  await setAbortFlag(true, null)
   
   // Abort any pending fetch operations
   if (global.__simulatorAbortController) {
@@ -355,6 +420,9 @@ export function killSimulator() {
   // Reset abort flag after everything is cleared
   // This allows new simulations to start
   simulatorState.abortFlag = false
+  
+  // Clear the database abort flag so new simulations can start
+  await setAbortFlag(false, null)
 }
 
 export async function resetSimulator() {
