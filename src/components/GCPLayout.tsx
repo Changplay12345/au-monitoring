@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { GCPHeader } from './GCPHeader'
 import { GCPSidebar } from './GCPSidebar'
 import { PageTransition } from './PageTransition'
@@ -19,6 +20,12 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
   const [isNavigating, setIsNavigating] = useState(false)
   const [targetPage, setTargetPage] = useState('')
   const [isEntering, setIsEntering] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  // Track mount for portal
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Entrance animation on mount
   useEffect(() => {
@@ -85,37 +92,38 @@ export function GCPLayout({ children, activeFeature = 'Course Monitoring', proje
     handleNavigate('/home', 'Home Page')
   }
 
+  // Logout overlay rendered via portal to document.body
+  const logoutOverlay = mounted && isLoggingOut ? createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}
+    >
+      <div className="text-center">
+        <div className="relative w-32 h-32 mx-auto mb-6">
+          <img
+            src="/au-monitoring-logo2.png"
+            alt="AU Monitoring Logo"
+            className="w-full h-full object-contain rounded-full animate-pulse"
+          />
+        </div>
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">Signing you out...</h2>
+        <p className="text-gray-500 text-sm">See you next time!</p>
+      </div>
+    </div>,
+    document.body
+  ) : null
+
   return (
     <div className={`min-h-screen bg-gray-50 transition-all duration-700 ease-out ${
       isEntering ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
     }`}>
-      {/* Logout transition overlay - same style as signing in */}
-      <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-red-50 transition-all duration-500 overflow-hidden ${
-          isLoggingOut ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center transform transition-all duration-500 ${
-          isLoggingOut ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
-        }`}>
-          {/* Animated logo - no red circles */}
-          <div className="relative w-32 h-32 mx-auto mb-6">
-            <img
-              src="/au-monitoring-logo2.png"
-              alt="AU Monitoring Logo"
-              className="w-full h-full object-contain rounded-full animate-pulse"
-            />
-          </div>
-          {/* Loading spinner */}
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-3 h-3 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Signing you out...</h2>
-          <p className="text-gray-500 text-sm">See you next time!</p>
-        </div>
-      </div>
+      {/* Logout overlay via portal */}
+      {logoutOverlay}
 
       {/* Page transition overlay */}
       <PageTransition isNavigating={isNavigating} targetPage={targetPage} />
