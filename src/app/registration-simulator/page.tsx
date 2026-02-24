@@ -116,7 +116,6 @@ export default function RegistrationSimulatorPage() {
   
   // Refs for simulation control
   const simulationRef = useRef<NodeJS.Timeout | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const abortRef = useRef(false);
 
   // Load from localStorage after mount (fixes hydration)
@@ -344,23 +343,9 @@ export default function RegistrationSimulatorPage() {
     };
   }, []);
 
-  // Timer for elapsed time
-  useEffect(() => {
-    if (isSimulating && !isPaused && stats.startTime) {
-      timerRef.current = setInterval(() => {
-        setStats(prev => ({
-          ...prev,
-          elapsedTime: Math.floor((Date.now() - (prev.startTime?.getTime() || Date.now())) / 1000)
-        }));
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isSimulating, isPaused, stats.startTime]);
+  // Timer for elapsed time - REMOVED local timer to prevent conflict with server polling
+  // The server sends elapsedTime in the status response, so we don't need a local timer
+  // This prevents the "two timers" glitch where both local and server times were updating
 
   // Register a student to random courses
   const registerStudent = useCallback(async (studentNum: number) => {
