@@ -117,6 +117,7 @@ export default function RegistrationSimulatorPage() {
   // Refs for simulation control
   const simulationRef = useRef<NodeJS.Timeout | null>(null);
   const abortRef = useRef(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load from localStorage after mount (fixes hydration)
   useEffect(() => {
@@ -157,75 +158,22 @@ export default function RegistrationSimulatorPage() {
     if (hasMounted) localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(logs));
   }, [logs, hasMounted]);
 
-  // Poll server for simulation status
+  // Timer for elapsed time - runs client-side only
   useEffect(() => {
-    let isMounted = true;
-    let lastRegisteredStudents = 0;
-    let lastSessionId: string | null = null;
-    
-    const pollStatus = async () => {
-      if (!isMounted) return;
-      
-      try {
-        const res = await fetch('/api/simulator/status');
-        if (!isMounted) return;
-        
-        if (res.ok) {
-          const data = await res.json();
-          
-          // Detect session change (new simulation started or killed)
-          if (data.sessionId !== lastSessionId) {
-            lastSessionId = data.sessionId;
-            lastRegisteredStudents = 0; // Reset counter for new session
-          }
-          
-          setIsSimulating(data.isRunning);
-          
-          // If not running, don't update stats from server (use local state)
-          if (!data.isRunning) {
-            return;
-          }
-          
-          if (data.stats) {
-            // Only update if the new value is >= current to prevent jumping back
-            const newRegistered = data.stats.registeredStudents;
-            if (newRegistered >= lastRegisteredStudents) {
-              lastRegisteredStudents = newRegistered;
-              setStats(prev => ({
-                ...prev,
-                registeredStudents: newRegistered,
-                totalRegistrations: Math.max(prev.totalRegistrations, data.stats.totalRegistrations),
-                failedRegistrations: Math.max(prev.failedRegistrations, data.stats.failedRegistrations),
-                elapsedTime: data.stats.elapsedTime,
-              }));
-            }
-          }
-          
-          // Only sync logs from server if simulation is running
-          if (data.logs && data.logs.length > 0) {
-            setLogs(prev => {
-              const serverLogs = data.logs;
-              const newLogs = serverLogs.filter((log: string) => !prev.includes(log));
-              if (newLogs.length === 0) return prev;
-              return [...newLogs, ...prev].slice(0, 100);
-            });
-          }
-        }
-      } catch (error) {
-        // Ignore polling errors
-      }
-    };
-
-    // Initial check
-    pollStatus();
-    
-    // Poll every 500ms for smoother updates
-    const interval = setInterval(pollStatus, 500);
+    if (isSimulating && !isPaused && stats.startTime) {
+      timerRef.current = setInterval(() => {
+        setStats(prev => ({
+          ...prev,
+          elapsedTime: Math.floor((Date.now() - (prev.startTime?.getTime() || Date.now())) / 1000)
+        }));
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
     return () => {
-      isMounted = false;
-      clearInterval(interval);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [isSimulating, isPaused, stats.startTime]);
 
   // Add log entry
   const addLog = useCallback((message: string) => {
@@ -413,98 +361,94 @@ export default function RegistrationSimulatorPage() {
     return { success: successCount, failed: failedCount };
   }, [courses, config.coursesPerStudent, addLog]);
 
-  // Start simulation (server-side)
+  // Start simulation (client-side controlled)
   const startSimulation = useCallback(async () => {
     if (isSimulating && !isPaused) return;
 
-    try {
-      const res = await fetch('/api/simulator/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          totalStudents: config.totalStudents,
-          coursesPerStudent: config.coursesPerStudent,
-          studentsPerMinute: config.studentsPerMinute,
-        }),
-      });
+    abortRef.current = false;
+    setIsSimulating(true);
+    setIsPaused(false);
+    setStats({
+      registeredStudents: 0,
+      totalRegistrations: 0,
+      failedRegistrations: 0,
+      startTime: new Date(),
+      elapsedTime: 0,
+    });
+    addLog(`🚀 Starting simulation: ${config.totalStudents} students, ${config.coursesPerStudent} courses each`);
 
-      if (res.ok) {
-        setIsSimulating(true);
-        setIsPaused(false);
-        setStats({
-          registeredStudents: 0,
-          totalRegistrations: 0,
-          failedRegistrations: 0,
-          startTime: new Date(),
-          elapsedTime: 0,
-        });
-        addLog(`🚀 Starting server-side simulation: ${config.totalStudents} students`);
+    // Run simulation client-side
+    const studentsPerSecond = config.studentsPerMinute / 60;
+    const delayBetweenStudents = 1000 / studentsPerSecond;
+    
+    for (let i = 1; i <= config.totalStudents; i++) {
+      if (abortRef.current) {
+        addLog('⏹️ Simulation stopped');
+        break;
       }
-    } catch (error) {
-      addLog('❌ Failed to start simulation');
-    }
-  }, [isSimulating, isPaused, config, addLog]);
 
-  // Pause/Stop simulation (server-side)
-  const pauseSimulation = useCallback(async () => {
-    // Optimistically update UI first for responsiveness
+      // Register student
+      const result = await registerStudent(i);
+      
+      setStats(prev => ({
+        ...prev,
+        registeredStudents: prev.registeredStudents + 1,
+        totalRegistrations: prev.totalRegistrations + result.success,
+        failedRegistrations: prev.failedRegistrations + result.failed,
+      }));
+
+      // Wait before next student
+      if (i < config.totalStudents && !abortRef.current) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenStudents));
+      }
+    }
+
+    if (!abortRef.current) {
+      addLog(`🎉 Simulation completed!`);
+    }
+    setIsSimulating(false);
+  }, [isSimulating, isPaused, config, addLog, registerStudent]);
+
+  // Pause/Stop simulation (client-side)
+  const pauseSimulation = useCallback(() => {
+    abortRef.current = true;
     setIsPaused(true);
     setIsSimulating(false);
-    
-    try {
-      const res = await fetch('/api/simulator/stop', { method: 'POST' });
-      if (!res.ok) {
-        throw new Error('Stop request failed');
-      }
-      // Server will add its own log, but we add one locally for immediate feedback
-    } catch (error) {
-      addLog('❌ Failed to stop simulation');
-      // Revert optimistic update on error
-      setIsSimulating(true);
-      setIsPaused(false);
-    }
+    addLog('⏹️ Simulation stopped');
   }, [addLog]);
 
-  // Kill process and reset to defaults
-  const killAndReset = useCallback(async () => {
-    // Optimistically update UI first for responsiveness
+  // Kill process and reset to defaults (client-side)
+  const killAndReset = useCallback(() => {
+    abortRef.current = true;
     setIsSimulating(false);
     setIsPaused(false);
     
-    try {
-      const res = await fetch('/api/simulator/kill', { method: 'POST' });
-      if (!res.ok) {
-        throw new Error('Kill request failed');
-      }
-      
-      // Reset all local state
-      setConfig({
-        mode: 'random',
-        totalStudents: 100,
-        coursesPerStudent: 5,
-        studentsPerMinute: 20,
-      });
-      setStats({
-        registeredStudents: 0,
-        totalRegistrations: 0,
-        failedRegistrations: 0,
-        startTime: null,
-        elapsedTime: 0,
-      });
-      setRegistrationHistory([]);
-      setLogs(['[' + new Date().toLocaleTimeString() + '] 🔴 Process killed and settings reset to defaults']);
-      
-      // Clear localStorage as well
-      localStorage.removeItem(STORAGE_KEYS.stats);
-      localStorage.removeItem(STORAGE_KEYS.logs);
-      localStorage.removeItem(STORAGE_KEYS.config);
-    } catch (error) {
-      addLog('❌ Failed to kill process');
-    }
-  }, [addLog]);
+    // Reset all local state
+    setConfig({
+      mode: 'random',
+      totalStudents: 100,
+      coursesPerStudent: 5,
+      studentsPerMinute: 20,
+    });
+    setStats({
+      registeredStudents: 0,
+      totalRegistrations: 0,
+      failedRegistrations: 0,
+      startTime: null,
+      elapsedTime: 0,
+    });
+    setRegistrationHistory([]);
+    setLogs(['[' + new Date().toLocaleTimeString() + '] 🔴 Process killed and settings reset to defaults']);
+    
+    // Clear localStorage as well
+    localStorage.removeItem(STORAGE_KEYS.stats);
+    localStorage.removeItem(STORAGE_KEYS.logs);
+    localStorage.removeItem(STORAGE_KEYS.config);
+  }, []);
 
-  // Reset simulation and database (server-side)
+  // Reset simulation and database
   const resetSimulation = useCallback(async () => {
+    abortRef.current = true; // Stop any running simulation
     setIsSimulating(false);
     setIsPaused(false);
     setIsResetting(true);
