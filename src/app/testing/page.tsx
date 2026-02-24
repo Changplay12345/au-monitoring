@@ -138,13 +138,14 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
   return { bg: '#FFFFFF', border: '#E5E7EB', text: '#111827' };
 }
 
-// --- TQF Master 2.0 Layout Constants ---
-const COL_SPACING = 230;
-const NODE_WIDTH = 190;
-const NODE_HEIGHT = 80;
-const NODE_GAP = 90;
-const HEADER_Y = 0;
-const CONTENT_START_Y = 60;
+// --- Grid-Locked Layout Constants (all multiples of GRID_UNIT) ---
+const GRID_UNIT = 50;
+const COL_SPACING = 250;   // 5 grid units between column starts
+const NODE_WIDTH = 200;    // 4 grid units wide
+const NODE_HEIGHT = 80;    // card height (top-aligned to grid)
+const NODE_GAP = 100;      // 2 grid units stride → 20px gap between cards
+const HEADER_Y = 0;        // on grid
+const CONTENT_START_Y = GRID_UNIT; // 1 grid unit below header
 
 // --- Compute absolute positions for all course nodes (TQF-style column layout) ---
 interface PositionedNode {
@@ -169,7 +170,7 @@ function computeLayout(groups: SemesterGroup[]): { nodes: PositionedNode[]; head
   const sorted = [...groups].sort((a, b) => a.year !== b.year ? a.year - b.year : a.semester - b.semester);
 
   sorted.forEach((group, colIndex) => {
-    const x = (colIndex + 1) * COL_SPACING;
+    const x = colIndex * COL_SPACING;
 
     // Column header
     headers.push({ year: group.year, semester: group.semester, x, y: HEADER_Y });
@@ -182,8 +183,8 @@ function computeLayout(groups: SemesterGroup[]): { nodes: PositionedNode[]; head
     });
   });
 
-  const totalWidth = (sorted.length + 1) * COL_SPACING + NODE_WIDTH;
-  const totalHeight = maxHeight + 40;
+  const totalWidth = (sorted.length - 1) * COL_SPACING + NODE_WIDTH;
+  const totalHeight = maxHeight + GRID_UNIT;
 
   return { nodes, headers, totalWidth, totalHeight };
 }
@@ -202,6 +203,7 @@ function PannableCanvas({
 }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(0.8);
+  const [dragging, setDragging] = useState(false);
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
@@ -224,6 +226,7 @@ function PannableCanvas({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     isDragging.current = true;
+    setDragging(true);
     lastMouse.current = { x: e.clientX, y: e.clientY };
     e.preventDefault();
   }, []);
@@ -238,6 +241,7 @@ function PannableCanvas({
 
   const handleMouseUp = useCallback(() => {
     isDragging.current = false;
+    setDragging(false);
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -265,7 +269,7 @@ function PannableCanvas({
       className="relative w-full overflow-hidden select-none"
       style={{
         height: 'calc(100vh - 180px)',
-        cursor: isDragging.current ? 'grabbing' : 'grab',
+        cursor: dragging ? 'grabbing' : 'grab',
         background: '#FAFAFA',
       }}
       onMouseDown={handleMouseDown}
@@ -282,8 +286,8 @@ function PannableCanvas({
             linear-gradient(#EBEBEB 1px, transparent 1px),
             linear-gradient(90deg, #EBEBEB 1px, transparent 1px)
           `,
-          backgroundSize: `${50 * zoom}px ${50 * zoom}px`,
-          backgroundPosition: `${pan.x % (50 * zoom)}px ${pan.y % (50 * zoom)}px`,
+          backgroundSize: `${GRID_UNIT * zoom}px ${GRID_UNIT * zoom}px`,
+          backgroundPosition: `${pan.x % (GRID_UNIT * zoom)}px ${pan.y % (GRID_UNIT * zoom)}px`,
         }}
       />
 
@@ -572,11 +576,14 @@ export default function TestingPage() {
                           left: header.x,
                           top: header.y,
                           width: NODE_WIDTH,
-                          height: 50,
+                          height: GRID_UNIT,
                         }}
                       >
-                        <div className="text-sm leading-tight font-semibold" style={{ color: '#1a1a2e' }}>
-                          {header.year}<sup className="text-[10px]">{getOrdinal(header.year)}</sup> Year {header.semester}<sup className="text-[10px]">{getOrdinal(header.semester)}</sup> Sem
+                        <div
+                          className="text-xs leading-tight font-semibold px-3 py-1 rounded-md"
+                          style={{ color: '#1a1a2e', background: 'rgba(0,0,0,0.04)' }}
+                        >
+                          {header.year}<sup className="text-[9px]">{getOrdinal(header.year)}</sup> Year {header.semester}<sup className="text-[9px]">{getOrdinal(header.semester)}</sup> Sem
                         </div>
                       </div>
                     ))}
