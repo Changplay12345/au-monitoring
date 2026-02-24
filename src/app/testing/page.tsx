@@ -139,12 +139,12 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
 }
 
 // --- TQF Master 2.0 Layout Constants ---
-const COL_SPACING = 300;
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 100;
-const NODE_GAP = 120;
+const COL_SPACING = 230;
+const NODE_WIDTH = 190;
+const NODE_HEIGHT = 80;
+const NODE_GAP = 90;
 const HEADER_Y = 0;
-const CONTENT_START_Y = 80;
+const CONTENT_START_Y = 60;
 
 // --- Compute absolute positions for all course nodes (TQF-style column layout) ---
 interface PositionedNode {
@@ -182,8 +182,8 @@ function computeLayout(groups: SemesterGroup[]): { nodes: PositionedNode[]; head
     });
   });
 
-  const totalWidth = (sorted.length + 2) * COL_SPACING;
-  const totalHeight = maxHeight + 100;
+  const totalWidth = (sorted.length + 1) * COL_SPACING + NODE_WIDTH;
+  const totalHeight = maxHeight + 40;
 
   return { nodes, headers, totalWidth, totalHeight };
 }
@@ -205,17 +205,20 @@ function PannableCanvas({
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
-  // Fit view on mount / content change
+  // Fit view on mount / content change — compute bounding box and center
   useEffect(() => {
     if (!containerRef.current || canvasWidth === 0) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const scaleX = rect.width / canvasWidth;
-    const scaleY = rect.height / canvasHeight;
-    const fitZoom = Math.min(scaleX, scaleY, 1) * 0.85;
+    const pad = 40;
+    const availW = rect.width - pad * 2;
+    const availH = rect.height - pad * 2;
+    const scaleX = availW / canvasWidth;
+    const scaleY = availH / canvasHeight;
+    const fitZoom = Math.min(scaleX, scaleY, 1.2);
     const centerX = (rect.width - canvasWidth * fitZoom) / 2;
     const centerY = (rect.height - canvasHeight * fitZoom) / 2;
     setZoom(fitZoom);
-    setPan({ x: centerX, y: Math.max(centerY, 20) });
+    setPan({ x: Math.max(centerX, pad), y: Math.max(centerY, pad) });
   }, [canvasWidth, canvasHeight, containerRef]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -261,7 +264,7 @@ function PannableCanvas({
       ref={containerRef}
       className="relative w-full overflow-hidden select-none"
       style={{
-        height: 'calc(100vh - 200px)',
+        height: 'calc(100vh - 180px)',
         cursor: isDragging.current ? 'grabbing' : 'grab',
         background: '#FAFAFA',
       }}
@@ -413,24 +416,24 @@ export default function TestingPage() {
     <>
       <DustBackgroundLight particleMultiplier={0.5} />
       <GCPLayout activeFeature="Testing" projectName="Testing">
-        {/* Locked centered container with horizontal padding */}
-        <div className="max-w-[1600px] mx-auto px-6 py-5">
+        {/* Locked centered container — expanded to use viewport width, with edge padding */}
+        <div className="max-w-[1920px] mx-auto px-4 py-4">
           {/* Page Header */}
-          <div className="mb-5">
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <GraduationCap className="w-6 h-6 text-red-600" />
+          <div className="mb-3">
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-red-600" />
               Graduation Course Cross-Check
             </h1>
-            <p className="text-gray-500 mt-1 text-sm">
+            <p className="text-gray-500 mt-0.5 text-xs">
               Verify student course completion against curriculum requirements
             </p>
           </div>
 
-          {/* 3-column layout: 15% | 70% | 15% — with explicit gap and contained boundaries */}
-          <div className="flex flex-col lg:flex-row gap-3">
+          {/* 3-column layout: 15% | 70% | 15% — aligned top, consistent spacing */}
+          <div className="flex flex-col lg:flex-row lg:items-start gap-3">
 
             {/* ===== LEFT PANEL (15%) ===== */}
-            <div className="w-full lg:w-[15%] lg:min-w-[180px] flex-shrink-0">
+            <div className="w-full lg:w-[14%] lg:min-w-[170px] lg:max-w-[220px] flex-shrink-0">
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-red-500" />
@@ -549,7 +552,7 @@ export default function TestingPage() {
                 </div>
 
                 {!studyPlanLoaded ? (
-                  <div className="flex flex-col items-center justify-center text-gray-400" style={{ height: 'calc(100vh - 200px)' }}>
+                  <div className="flex flex-col items-center justify-center text-gray-400" style={{ height: 'calc(100vh - 180px)' }}>
                     <BookOpen className="w-14 h-14 mb-4 opacity-30" />
                     <p className="text-sm font-medium">No study plan loaded</p>
                     <p className="text-xs text-gray-400 mt-1">Select a major and click Crosscheck</p>
@@ -593,8 +596,8 @@ export default function TestingPage() {
                             background: style.bg,
                             border: `1px solid ${style.border}`,
                             borderRadius: '6px',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                            padding: '8px 12px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                            padding: '6px 10px',
                           }}
                         >
                           {/* OR badge (matching TQF Master 2.0) */}
@@ -608,11 +611,11 @@ export default function TestingPage() {
                           )}
 
                           <div className="text-center">
-                            <div className="font-semibold text-base leading-tight break-words" style={{ color: style.text }}>
+                            <div className="font-semibold text-sm leading-tight break-words" style={{ color: style.text }}>
                               {node.course.courseCode || node.course.courseTitle}
                             </div>
                             {node.course.courseCode && (
-                              <div className="text-sm mt-1 leading-tight break-words" style={{ color: style.text, opacity: 0.75 }}>
+                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: style.text, opacity: 0.75 }}>
                                 {node.course.courseTitle}
                               </div>
                             )}
@@ -626,7 +629,7 @@ export default function TestingPage() {
             </div>
 
             {/* ===== RIGHT PANEL (15%) ===== */}
-            <div className="w-full lg:w-[15%] lg:min-w-[180px] flex-shrink-0">
+            <div className="w-full lg:w-[14%] lg:min-w-[170px] lg:max-w-[220px] flex-shrink-0">
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 min-h-[400px]">
                 <h2 className="text-sm font-semibold text-gray-800 mb-4">Analytics</h2>
                 <div className="flex flex-col items-center justify-center h-[300px] text-gray-300">
