@@ -29,6 +29,7 @@ const PAGE_ID_MAP: Record<string, string> = {
   '/tqf-desktop': 'TQF Master 2.0 Desktop',
   '/course-monitoring': 'Course Monitoring',
   '/tqf-master': 'TQF Master 2.0',
+  '/testing': 'Testing',
   '/registration-simulator': 'Registration Simulator',
   '/apis-services': 'APIs & Services',
   '/admin-panel': 'Admin Panel',

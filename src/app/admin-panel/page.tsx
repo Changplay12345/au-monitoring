@@ -5,7 +5,7 @@ import { GCPLayout } from '@/components/GCPLayout'
 import { RoleGuard } from '@/components/RoleGuard'
 import { getAllUsers, updateUserRole, deleteUser, updateUserInfo } from '@/lib/auth'
 import { usePageVisibility, PAGE_ID_MAP } from '@/contexts/PageVisibilityContext'
-import { Users, Shield, Edit, Trash2, Save, X, User as UserIcon, Mail, Eye, EyeOff, Lock, ChevronDown, ChevronUp, Home, Laptop, Files, Download, Brain, Folder, Database, Code2 } from 'lucide-react'
+import { Users, Shield, Edit, Trash2, Save, X, User as UserIcon, Mail, Eye, EyeOff, Lock, ChevronDown, ChevronUp, Home, Laptop, Files, Download, Brain, Folder, Database, Code2, GraduationCap } from 'lucide-react'
 
 interface UserData {
   id: string
@@ -31,6 +31,7 @@ export default function AdminPanelPage() {
     { id: 'TQF Master 2.0 Desktop', icon: <Download className="w-5 h-5" />, path: '/tqf-desktop' },
     { id: 'Course Monitoring', icon: <Brain className="w-5 h-5" />, path: '/course-monitoring' },
     { id: 'TQF Master 2.0', icon: <Folder className="w-5 h-5" />, path: '/tqf-master' },
+    { id: 'Testing', icon: <GraduationCap className="w-5 h-5" />, path: '/testing' },
     { id: 'Registration Simulator', icon: <Database className="w-5 h-5" />, path: '/registration-simulator' },
     { id: 'APIs & Services', icon: <Code2 className="w-5 h-5" />, path: '/apis-services' },
   ]
