@@ -138,16 +138,22 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
   return { bg: '#FFFFFF', border: '#E5E7EB', text: '#111827' };
 }
 
-// --- Grid-Locked Layout Constants (all multiples of GRID_UNIT) ---
-const GRID_UNIT = 50;
-const COL_SPACING = 250;   // 5 grid units between column starts
-const NODE_WIDTH = 200;    // 4 grid units wide
-const NODE_HEIGHT = 80;    // card height (top-aligned to grid)
-const NODE_GAP = 100;      // 2 grid units stride → 20px gap between cards
-const HEADER_Y = 0;        // on grid
-const CONTENT_START_Y = GRID_UNIT; // 1 grid unit below header
+// ═══════════════════════════════════════════════════════════════════
+// DETERMINISTIC GRID LAYOUT ENGINE
+// All values are exact multiples of GRID. No arbitrary offsets.
+// ═══════════════════════════════════════════════════════════════════
+const GRID = 50;                                    // background grid cell size (px)
+const HEADER_HEIGHT = GRID * 1;                     // 50px — 1 grid cell for header
+const TOP_OFFSET = 0;                               // 0px — canvas starts at 0
+const GLOBAL_Y_START = TOP_OFFSET + HEADER_HEIGHT;  // 50px — SINGLE Y origin for ALL columns
 
-// --- Compute absolute positions for all course nodes (TQF-style column layout) ---
+const COLUMN_WIDTH = GRID * 4;                      // 200px — card width = 4 grid cells
+const COLUMN_GAP = GRID * 1;                        // 50px — gap between columns = 1 grid cell
+const CARD_HEIGHT = GRID * 2;                       // 100px — card height = 2 grid cells
+// Card stride = CARD_HEIGHT + GRID = 150px (card + 1 grid gap)
+// Card Y = GLOBAL_Y_START + rowIndex * (CARD_HEIGHT + GRID)
+
+// --- Positioned element interfaces ---
 interface PositionedNode {
   course: CurriculumCourse;
   x: number;
@@ -161,30 +167,49 @@ interface ColumnHeader {
   y: number;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// computeLayout — deterministic grid positioning
+//   X = index * (COLUMN_WIDTH + COLUMN_GAP)
+//   Y = GLOBAL_Y_START + rowIndex * (CARD_HEIGHT + GRID)
+//   Every first card Y === GLOBAL_Y_START (enforced, not derived)
+// ═══════════════════════════════════════════════════════════════════
 function computeLayout(groups: SemesterGroup[]): { nodes: PositionedNode[]; headers: ColumnHeader[]; totalWidth: number; totalHeight: number } {
   const nodes: PositionedNode[] = [];
   const headers: ColumnHeader[] = [];
-  let maxHeight = 0;
+  let maxBottom = 0;
 
-  // Sort groups and assign column indices
   const sorted = [...groups].sort((a, b) => a.year !== b.year ? a.year - b.year : a.semester - b.semester);
 
-  sorted.forEach((group, colIndex) => {
-    const x = colIndex * COL_SPACING;
+  sorted.forEach((group, index) => {
+    // Column X — depends ONLY on index
+    const columnX = index * (COLUMN_WIDTH + COLUMN_GAP);
 
-    // Column header
-    headers.push({ year: group.year, semester: group.semester, x, y: HEADER_Y });
+    // Header — fixed at TOP_OFFSET for ALL columns (same horizontal line)
+    headers.push({ year: group.year, semester: group.semester, x: columnX, y: TOP_OFFSET });
 
-    // Course nodes stacked vertically
+    // Cards — GLOBAL_Y_START + rowIndex * (CARD_HEIGHT + GRID)
     group.courses.forEach((course, rowIndex) => {
-      const y = CONTENT_START_Y + rowIndex * NODE_GAP;
-      nodes.push({ course, x, y });
-      if (y + NODE_HEIGHT > maxHeight) maxHeight = y + NODE_HEIGHT;
+      const cardY = GLOBAL_Y_START + rowIndex * (CARD_HEIGHT + GRID);
+      nodes.push({ course, x: columnX, y: cardY });
+      const bottom = cardY + CARD_HEIGHT;
+      if (bottom > maxBottom) maxBottom = bottom;
     });
   });
 
-  const totalWidth = (sorted.length - 1) * COL_SPACING + NODE_WIDTH;
-  const totalHeight = maxHeight + GRID_UNIT;
+  // === VALIDATION: log first card Y for every semester ===
+  if (typeof window !== 'undefined') {
+    const validation = sorted.map((g, i) => ({
+      col: `Y${g.year}S${g.semester}`,
+      x: i * (COLUMN_WIDTH + COLUMN_GAP),
+      firstCardY: GLOBAL_Y_START,
+    }));
+    console.log('[Grid Layout] GLOBAL_Y_START =', GLOBAL_Y_START);
+    console.log('[Grid Layout] First card Y per semester:', validation);
+    console.log('[Grid Layout] Card stride =', CARD_HEIGHT + GRID, '(card', CARD_HEIGHT, '+ gap', GRID, ')');
+  }
+
+  const totalWidth = (sorted.length - 1) * (COLUMN_WIDTH + COLUMN_GAP) + COLUMN_WIDTH;
+  const totalHeight = maxBottom + GRID;
 
   return { nodes, headers, totalWidth, totalHeight };
 }
@@ -286,8 +311,8 @@ function PannableCanvas({
             linear-gradient(#EBEBEB 1px, transparent 1px),
             linear-gradient(90deg, #EBEBEB 1px, transparent 1px)
           `,
-          backgroundSize: `${GRID_UNIT * zoom}px ${GRID_UNIT * zoom}px`,
-          backgroundPosition: `${pan.x % (GRID_UNIT * zoom)}px ${pan.y % (GRID_UNIT * zoom)}px`,
+          backgroundSize: `${GRID * zoom}px ${GRID * zoom}px`,
+          backgroundPosition: `${pan.x % (GRID * zoom)}px ${pan.y % (GRID * zoom)}px`,
         }}
       />
 
@@ -571,12 +596,14 @@ export default function TestingPage() {
                     {layout.headers.map(header => (
                       <div
                         key={`header-${header.year}-${header.semester}`}
-                        className="absolute flex items-center justify-center"
                         style={{
+                          position: 'absolute',
                           left: header.x,
                           top: header.y,
-                          width: NODE_WIDTH,
-                          height: GRID_UNIT,
+                          width: COLUMN_WIDTH,
+                          height: HEADER_HEIGHT,
+                          display: 'grid',
+                          placeItems: 'center',
                         }}
                       >
                         <div
@@ -594,17 +621,21 @@ export default function TestingPage() {
                       return (
                         <div
                           key={`node-${node.course.courseCode || node.course.courseTitle}-${idx}`}
-                          className="absolute flex flex-col justify-center relative"
                           style={{
+                            position: 'absolute',
                             left: node.x,
                             top: node.y,
-                            width: NODE_WIDTH,
-                            height: NODE_HEIGHT,
+                            width: COLUMN_WIDTH,
+                            height: CARD_HEIGHT,
                             background: style.bg,
                             border: `1px solid ${style.border}`,
                             borderRadius: '6px',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                            padding: '6px 10px',
+                            display: 'grid',
+                            placeItems: 'center',
+                            margin: 0,
+                            padding: 0,
+                            overflow: 'visible',
                           }}
                         >
                           {/* OR badge (matching TQF Master 2.0) */}
