@@ -55,7 +55,7 @@ interface ParsedTranscript {
 // --- Vincent Mary School of Engineering Majors ---
 const MAJORS = [
   { value: 'science', label: 'Computer Science', csvFile: 'science.csv' },
-  { value: 'computer-engineering', label: 'Computer Engineering', csvFile: 'computer-engineering.csv' },
+  { value: 'computer-engineering', label: 'Computer Engineering', csvFile: 'ece.csv' },
   { value: 'electrical-engineering', label: 'Electrical & Electronic Engineering', csvFile: 'electrical-engineering.csv' },
   { value: 'mechanical-engineering', label: 'Mechanical Engineering', csvFile: 'mechanical-engineering.csv' },
   { value: 'mechatronics', label: 'Mechatronics Engineering', csvFile: 'mechatronics.csv' },
@@ -332,20 +332,25 @@ function PannableCanvas({
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
-  // Fit view on mount / content change — compute bounding box and center
+  // Fit view on mount / content change — wait for browser layout, then compute bounding box and center
   useEffect(() => {
     if (!containerRef.current || canvasWidth === 0) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const pad = 40;
-    const availW = rect.width - pad * 2;
-    const availH = rect.height - pad * 2;
-    const scaleX = availW / canvasWidth;
-    const scaleY = availH / canvasHeight;
-    const fitZoom = Math.min(scaleX, scaleY, 1.2);
-    const centerX = (rect.width - canvasWidth * fitZoom) / 2;
-    const centerY = (rect.height - canvasHeight * fitZoom) / 2;
-    setZoom(fitZoom);
-    setPan({ x: Math.max(centerX, pad), y: Math.max(centerY, pad) });
+    const raf = requestAnimationFrame(() => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pad = 40;
+      const availW = rect.width - pad * 2;
+      const availH = rect.height - pad * 2;
+      if (availW <= 0 || availH <= 0) return;
+      const scaleX = availW / canvasWidth;
+      const scaleY = availH / canvasHeight;
+      const fitZoom = Math.min(scaleX, scaleY, 1.2);
+      const centerX = (rect.width - canvasWidth * fitZoom) / 2;
+      const centerY = (rect.height - canvasHeight * fitZoom) / 2;
+      setZoom(fitZoom);
+      setPan({ x: centerX, y: centerY });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [canvasWidth, canvasHeight, containerRef]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
