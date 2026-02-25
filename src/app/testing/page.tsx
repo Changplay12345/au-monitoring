@@ -332,25 +332,30 @@ function PannableCanvas({
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
-  // Fit view on mount / content change — wait for browser layout, then compute bounding box and center
+  // Fit view on mount / content change — double-RAF for reliable layout measurement
   useEffect(() => {
-    if (!containerRef.current || canvasWidth === 0) return;
-    const raf = requestAnimationFrame(() => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const pad = 40;
-      const availW = rect.width - pad * 2;
-      const availH = rect.height - pad * 2;
-      if (availW <= 0 || availH <= 0) return;
-      const scaleX = availW / canvasWidth;
-      const scaleY = availH / canvasHeight;
-      const fitZoom = Math.min(scaleX, scaleY, 1.2);
-      const centerX = (rect.width - canvasWidth * fitZoom) / 2;
-      const centerY = (rect.height - canvasHeight * fitZoom) / 2;
-      setZoom(fitZoom);
-      setPan({ x: centerX, y: centerY });
+    if (!containerRef.current || canvasWidth === 0 || canvasHeight === 0) return;
+    // Double requestAnimationFrame ensures layout is fully settled
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const pad = 50;
+        const availW = rect.width - pad * 2;
+        const availH = rect.height - pad * 2;
+        if (availW <= 0 || availH <= 0) return;
+        const scaleX = availW / canvasWidth;
+        const scaleY = availH / canvasHeight;
+        // Clamp zoom: min 0.5 for readability, max 1.0 to avoid over-zoom
+        const fitZoom = Math.max(0.5, Math.min(scaleX, scaleY, 1.0));
+        const centerX = (rect.width - canvasWidth * fitZoom) / 2;
+        const centerY = (rect.height - canvasHeight * fitZoom) / 2;
+        setZoom(fitZoom);
+        setPan({ x: centerX, y: centerY });
+      });
+      return () => cancelAnimationFrame(raf2);
     });
-    return () => cancelAnimationFrame(raf);
+    return () => cancelAnimationFrame(raf1);
   }, [canvasWidth, canvasHeight, containerRef]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -448,7 +453,7 @@ export default function TestingPage() {
   const { isLoading: authLoading, isAuthenticated } = useAuth();
 
   // Left panel state
-  const [selectedMajor, setSelectedMajor] = useState('science');
+  const [selectedMajor, setSelectedMajor] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -522,10 +527,14 @@ export default function TestingPage() {
     setError(null);
   }, []);
 
-  // Handle Crosscheck — parse PDF + cross-check against study plan
+  // Handle Crosscheck — requires both major AND PDF, then parse + cross-check
   const handleCrosscheck = useCallback(async () => {
     if (!selectedMajor) {
       setError('Please select a major first.');
+      return;
+    }
+    if (!pdfFile) {
+      setError('Please upload a transcript PDF first.');
       return;
     }
     if (!csvLoaded || curriculum.length === 0) {
@@ -539,27 +548,25 @@ export default function TestingPage() {
     setCompletedCourses(new Set());
 
     try {
-      if (pdfFile) {
-        const text = await extractPdfText(pdfFile);
-        console.log('[PDF Parser] Extracted text (first 600 chars):', text.substring(0, 600));
+      const text = await extractPdfText(pdfFile);
+      console.log('[PDF Parser] Extracted text (first 600 chars):', text.substring(0, 600));
 
-        const parsed = parseTranscriptText(text);
-        if (!parsed) {
-          setError('Could not parse transcript. No 7-digit student ID found.');
-          setIsProcessing(false);
-          return;
-        }
-
-        console.log('[PDF Parser] Parsed transcript:', JSON.stringify(parsed, null, 2));
-        setParsedTranscript(parsed);
-
-        // Build completed course set from ALL parsed semesters
-        const completed = new Set(
-          parsed.semesters.flatMap(s => s.courses.map(c => c.code))
-        );
-        setCompletedCourses(completed);
-        console.log('[Crosscheck] Completed courses:', [...completed]);
+      const parsed = parseTranscriptText(text);
+      if (!parsed) {
+        setError('Could not parse transcript. No 7-digit student ID found.');
+        setIsProcessing(false);
+        return;
       }
+
+      console.log('[PDF Parser] Parsed transcript:', JSON.stringify(parsed, null, 2));
+      setParsedTranscript(parsed);
+
+      // Build completed course set from ALL parsed semesters
+      const completed = new Set(
+        parsed.semesters.flatMap(s => s.courses.map(c => c.code))
+      );
+      setCompletedCourses(completed);
+      console.log('[Crosscheck] Completed courses:', [...completed]);
 
       setStudyPlanLoaded(true);
     } catch (err) {
@@ -659,7 +666,7 @@ export default function TestingPage() {
                 {/* Crosscheck Button */}
                 <button
                   onClick={handleCrosscheck}
-                  disabled={isProcessing || !selectedMajor}
+                  disabled={isProcessing || !selectedMajor || !pdfFile}
                   className="w-full flex items-center justify-center gap-1.5 bg-red-600 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isProcessing ? (
