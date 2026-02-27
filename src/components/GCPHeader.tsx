@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { 
   Menu, 
   Bell, 
-  HelpCircle, 
   Database
 } from 'lucide-react'
 import { cn } from './utils'
@@ -112,11 +111,6 @@ export function GCPHeader({
             onViewCourse={handleViewCourse}
           />
         </div>
-
-        {/* Help */}
-        <button className="p-2 hover:bg-gray-100 rounded-full transition-colors" title="Help">
-          <HelpCircle className="w-5 h-5 text-gray-600" />
-        </button>
 
         {/* User avatar with dropdown */}
         <div className="relative ml-2">

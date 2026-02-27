@@ -8,13 +8,16 @@ import { RefreshCw, Search, SlidersHorizontal, X, Plus, Trash2, Edit } from 'luc
 import { CSVCourse } from './CourseBlock'
 import { CourseDetailEditor } from './CourseDetailEditor'
 import { CourseGroup as SupabaseCourseGroup } from '@/lib/types'
-import { SwimlaneSchedule } from './SwimlaneSchedule'
+
 import { AnimatedNumber } from './AnimatedNumber'
 import { AddClassModalPlanner } from './AddClassModalPlanner'
 import { EditClassModalPlanner } from './EditClassModalPlanner'
 import { useAuth } from '@/hooks/useAuth'
 import { Portal } from './Portal'
 
+
+// Day order: Monday first, Sunday last
+const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const
 
 // Time axis configuration
 const START_MIN = 7 * 60 + 30  // 07:30
@@ -151,12 +154,9 @@ export function CoursePlanner() {
     refresh,
   } = useCoursePlanner()
 
-  // Timetable_Move function state - slide positions
-  const [allSlidePos, setAllSlidePos] = useState(0) // ALL timetable position: 0 = center, 200 = off right
-  const [daySlidePos, setDaySlidePos] = useState(-100) // Day timetable position: -100 = off left, 0 = center
-  const [showAllTimetable, setShowAllTimetable] = useState(true)
-  const [showDayTimetable, setShowDayTimetable] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
+  // Day tab state - no ALL view, single day at a time
+  const [selectedDay, setSelectedDay] = useState<string>('Monday')
+  const [transitionKey, setTransitionKey] = useState(0)
 
   // Selected course group for detail panel (Option C)
   // Store course identifiers instead of full data so we can look up latest data
@@ -206,54 +206,13 @@ export function CoursePlanner() {
     setSelectedGroupIds(null)
   }
 
-  // Handle day change with slide animation (only ALL <-> Day, not Day <-> Day)
+  // Handle day change with fade + slide transition
   const handleDayChange = useCallback((newDay: string) => {
-    if (newDay === filters.activeDay || isAnimating) return
-    
-    // Day -> Day: No animation, instant switch
-    if (filters.activeDay !== 'ALL' && newDay !== 'ALL') {
-      setActiveDay(newDay as typeof filters.activeDay)
-      return
-    }
-    
-    setIsAnimating(true)
-    
-    if (newDay === 'ALL') {
-      // Day -> ALL: Reverse of ALL -> Day
-      setShowAllTimetable(true)
-      setAllSlidePos(200)
-      
-      setTimeout(() => {
-        setDaySlidePos(-155)
-        setAllSlidePos(0)
-      }, 20)
-      
-      setTimeout(() => {
-        setActiveDay('ALL')
-        setShowDayTimetable(false)
-        setDaySlidePos(0)
-        setIsAnimating(false)
-      }, 620)
-    } else {
-      // ALL -> Day: Both animate simultaneously
-      setShowDayTimetable(true)
-      setDaySlidePos(-170)
-      setActiveDay(newDay as typeof filters.activeDay)
-      
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setAllSlidePos(200)
-          setDaySlidePos(0)
-        })
-      })
-      
-      setTimeout(() => {
-        setShowAllTimetable(false)
-        setAllSlidePos(0)
-        setIsAnimating(false)
-      }, 600)
-    }
-  }, [filters.activeDay, isAnimating, setActiveDay])
+    if (newDay === selectedDay) return
+    setSelectedDay(newDay)
+    setActiveDay(newDay as typeof filters.activeDay)
+    setTransitionKey(prev => prev + 1)
+  }, [selectedDay, setActiveDay, filters.activeDay])
 
   // Group courses by time for detail panel
   const groupByTime = (courses: CSVCourse[]) => {
@@ -597,29 +556,18 @@ export function CoursePlanner() {
       <header className="flex justify-between items-center gap-3 mb-4 flex-wrap">
         {/* Day tabs */}
         <nav className="flex gap-1 border border-red-600 rounded-xl p-1 bg-white">
-          <button
-            onClick={() => handleDayChange('ALL')}
-            className={cn(
-              'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              filters.activeDay === 'ALL'
-                ? 'bg-red-600 text-white'
-                : 'text-red-600 hover:bg-red-50'
-            )}
-          >
-            ALL
-          </button>
-          {DAYS.map(day => (
+          {DAY_ORDER.map(day => (
             <button
               key={day}
               onClick={() => handleDayChange(day)}
               className={cn(
                 'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                filters.activeDay === day
+                selectedDay === day
                   ? 'bg-red-600 text-white'
                   : 'text-red-600 hover:bg-red-50'
               )}
             >
-              {day.slice(0, 1)}
+              {day.slice(0, 3)}
             </button>
           ))}
         </nav>
@@ -717,114 +665,86 @@ export function CoursePlanner() {
         </div>
       )}
 
-      {/* Timetable container - relative for absolute positioned children */}
-      <div className="relative">
-        {/* Swimlane View for individual days - slides like toilet paper roll */}
-        {showDayTimetable && (
-          <div 
-            className={cn(
-              "transition-transform duration-[600ms]",
-              showAllTimetable && "absolute inset-x-0 top-0"
-            )}
-            style={{
-              transform: `translateX(${daySlidePos}%)`,
-              transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          >
-            <SwimlaneSchedule day={filters.activeDay as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'} courses={allCourses} />
-          </div>
-        )}
+      {/* Single-day timetable — isolated board per day with fade+slide transition */}
+      <div
+        key={transitionKey}
+        style={{
+          animation: 'dayFadeSlide 250ms ease-in-out both',
+        }}
+      >
+        {(() => {
+          const dayData = processedCoursesByDay[selectedDay] || { courses: [], maxLayers: 0 }
+          const { courses: dayCourses, maxLayers } = dayData
+          const rowHeight = Math.max(3, maxLayers) * 52
 
-        {/* Regular Timetable View - ALL days - slides like toilet paper roll */}
-        {showAllTimetable && (
-          <div 
-            className={cn(
-              "transition-transform duration-[600ms]",
-              showDayTimetable && "absolute inset-x-0 top-0"
-            )}
-            style={{
-              transform: `translateX(${allSlidePos}%)`,
-              transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          >
-        <div className="relative">
-
-        {/* Timetable content - wider to the right for more course name space */}
-        <div style={{ width: '120%' }}>
-          {/* Time ruler - outside the box */}
-          <div className="relative ml-[70px] h-5 mb-2">
-            {ticks.map((tick, i) => (
-              <div
-                key={i}
-                className="absolute top-0 -translate-x-1/2 text-xs text-gray-500 font-semibold"
-                style={{ left: `${tick.x}%` }}
-              >
-                {!tick.isLast && tick.time}
-                <div className="w-px h-3 bg-gray-200 mx-auto mt-1" />
+          return (
+            <div className="relative">
+              {/* Day title */}
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-lg font-bold text-gray-800">{selectedDay}</span>
+                <span className="text-sm text-gray-400">{dayCourses.length} section{dayCourses.length !== 1 ? 's' : ''}</span>
               </div>
-            ))}
-          </div>
 
-          {/* Time table box */}
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
-            {/* Grid - Time table structure with vertical stacking for overlaps */}
-            <div>
-              {DAYS.map((day, dayIdx) => {
-                const dayData = processedCoursesByDay[day] || { courses: [], maxLayers: 0 }
-                const { courses: dayCourses, maxLayers } = dayData
-                const rowHeight = Math.max(1, maxLayers) * 52 // 52px per layer, minimum 52px
-                
-                return (
+              {/* Timetable content */}
+              <div style={{ width: '120%' }}>
+                {/* Time ruler */}
+                <div className="relative ml-[70px] h-5 mb-2">
+                  {ticks.map((tick, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-0 -translate-x-1/2 text-xs text-gray-500 font-semibold"
+                      style={{ left: `${tick.x}%` }}
+                    >
+                      {!tick.isLast && tick.time}
+                      <div className="w-px h-3 bg-gray-200 mx-auto mt-1" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Time table box */}
+                <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
                   <div
-                    key={day}
-                    className={cn(
-                      'relative',
-                      dayIdx > 0 && 'border-t border-gray-200'
-                    )}
+                    className="relative"
                     style={{ minHeight: `${rowHeight}px` }}
                   >
-                    {/* Day label - sticky left */}
-                    <div 
+                    {/* Day label */}
+                    <div
                       className="absolute left-0 top-0 bottom-0 w-[70px] flex items-center justify-center font-semibold text-gray-500 bg-white border-r border-gray-200 z-10"
-                      style={{ position: 'sticky', left: 0 }}
                     >
-                      {day.slice(0, 3).toUpperCase()}
+                      {selectedDay.slice(0, 3).toUpperCase()}
                     </div>
 
-                    {/* Time slots grid with CSS Grid for vertical stacking */}
-                    <div 
+                    {/* Time slots grid */}
+                    <div
                       className="ml-[70px] relative"
                       style={{
                         display: 'grid',
-                        gridTemplateRows: `repeat(${Math.max(1, maxLayers)}, minmax(56px, auto))`,
+                        gridTemplateRows: `repeat(${Math.max(3, maxLayers)}, minmax(56px, auto))`,
                         gridTemplateColumns: `repeat(${CELLS}, 1fr)`,
                         backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px)',
                         backgroundSize: `${100 / CELLS}% 100%`,
                         minHeight: `${rowHeight}px`,
                       }}
                     >
-                      {/* Course cards - positioned by absolute positioning for precise time alignment */}
+                      {/* Course cards */}
                       {dayCourses.map((course) => {
                         const courseId = `${course.courseCode}-${course.section}`
                         const courseStart = timeToMinutes(course.startTime)
                         const courseEnd = timeToMinutes(course.endTime)
-                        
-                        // Calculate precise position using percentage of total span
                         const leftPercent = ((courseStart - START_MIN) / SPAN_MIN) * 100
                         const widthPercent = ((courseEnd - courseStart) / SPAN_MIN) * 100
-                        
-                        // Seat status color
+
                         const seatRatio = course.seatLimit > 0 ? course.seatLeft / course.seatLimit : 0
                         const statusColor = course.seatLeft === 0 ? 'bg-red-100 border-red-300 hover:bg-red-50' :
                           seatRatio < 0.25 ? 'bg-orange-100 border-orange-300 hover:bg-orange-50' :
                           seatRatio < 0.5 ? 'bg-amber-100 border-amber-300 hover:bg-amber-50' :
                           'bg-emerald-100 border-emerald-300 hover:bg-emerald-50'
-                        
+
                         const badgeColor = course.seatLeft === 0 ? 'bg-red-500' :
                           seatRatio < 0.25 ? 'bg-orange-500' :
                           seatRatio < 0.5 ? 'bg-amber-500' :
                           'bg-emerald-500'
-                        
+
                         return (
                           <div
                             key={courseId}
@@ -836,13 +756,12 @@ export function CoursePlanner() {
                             style={{
                               left: `${leftPercent}%`,
                               width: `${widthPercent}%`,
-                              top: `${course.layer * 52}px`, // 52px per layer
-                              height: '48px', // Reduced height for compact display
-                              zIndex: 10 + course.layer, // Higher layers on top
+                              top: `${course.layer * 52}px`,
+                              height: '48px',
+                              zIndex: 10 + course.layer,
                             }}
                             onClick={() => handleCourseClick([course])}
                           >
-                            {/* Course content */}
                             <div className="flex flex-col h-full justify-between">
                               <div className="flex items-center justify-between">
                                 <div className="font-bold text-gray-800 text-sm">
@@ -856,38 +775,33 @@ export function CoursePlanner() {
                                 </span>
                               </div>
                               <div className="text-xs text-gray-500">
-                                {formatTime(course.startTime)} – {formatTime(course.endTime)}
+                                {formatTime(course.startTime)} - {formatTime(course.endTime)}
                               </div>
                             </div>
                           </div>
                         )
                       })}
-                      
+
                       {/* Empty state */}
                       {dayCourses.length === 0 && (
-                        <div 
+                        <div
                           className="absolute flex items-center justify-center text-gray-400 text-sm italic"
                           style={{
                             left: '50%',
-                            top: '24px',
-                            transform: 'translateX(-50%)',
-                            width: 'auto',
-                            height: '48px',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
                           }}
                         >
-                          No courses
+                          No courses on {selectedDay}
                         </div>
                       )}
                     </div>
                   </div>
-                )
-              })}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        </div>
-      </div>
-      )}
+          )
+        })()}
       </div>
 
       {/* Advanced Filter Popup - Rendered via Portal to escape transform context */}
@@ -1032,31 +946,35 @@ export function CoursePlanner() {
         )}
       </Portal>
       
-      {/* Add Class Modal */}
-      <AddClassModalPlanner
-        isOpen={showAddClassModal}
-        onClose={() => setShowAddClassModal(false)}
-        onSuccess={() => {
-          setShowAddClassModal(false)
-          refresh()
-        }}
-      />
+      {/* Add Class Modal — Portal to escape transform context for proper centering */}
+      <Portal>
+        <AddClassModalPlanner
+          isOpen={showAddClassModal}
+          onClose={() => setShowAddClassModal(false)}
+          onSuccess={() => {
+            setShowAddClassModal(false)
+            refresh()
+          }}
+        />
+      </Portal>
 
-      {/* Edit Class Modal */}
-      <EditClassModalPlanner
-        isOpen={showEditClassModal}
-        onClose={() => {
-          setShowEditClassModal(false)
-          setEditingCourse(null)
-        }}
-        onSuccess={() => {
-          setShowEditClassModal(false)
-          setEditingCourse(null)
-          refresh()
-        }}
-        course={editingCourse}
-        userId={user?.id}
-      />
+      {/* Edit Class Modal — Portal to escape transform context for proper centering */}
+      <Portal>
+        <EditClassModalPlanner
+          isOpen={showEditClassModal}
+          onClose={() => {
+            setShowEditClassModal(false)
+            setEditingCourse(null)
+          }}
+          onSuccess={() => {
+            setShowEditClassModal(false)
+            setEditingCourse(null)
+            refresh()
+          }}
+          course={editingCourse}
+          userId={user?.id}
+        />
+      </Portal>
 
       {/* Delete Confirmation Dialog */}
       {deleteConfirm && (
