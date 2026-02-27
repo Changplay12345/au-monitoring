@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Menu, 
   Bell, 
@@ -10,6 +11,8 @@ import {
 import { cn } from './utils'
 import { ProfileDropdown } from './ProfileDropdown'
 import { UserAvatar } from './UserAvatar'
+import { NotificationPanel } from './notifications'
+import { useNotifications } from '@/hooks/useNotifications'
 import { User } from '@/lib/types'
 
 interface GCPHeaderProps {
@@ -29,7 +32,21 @@ export function GCPHeader({
   user = null,
   onLogout = () => {}
 }: GCPHeaderProps) {
+  const router = useRouter()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
+  const { unreadCount } = useNotifications()
+
+  const handleViewCourse = (courseCode: string, section?: string) => {
+    // Close notification panel first to prevent Portal DOM errors during navigation
+    setIsNotificationPanelOpen(false)
+    // Longer delay to allow React to fully unmount all portals before navigation
+    setTimeout(() => {
+      const searchParam = encodeURIComponent(courseCode)
+      // Use db=test to show data from test database, filter=full to show only full sections
+      router.push(`/course-monitoring?search=${searchParam}&db=test&filter=full`)
+    }, 150)
+  }
 
   const getInitials = (name: string | null | undefined, username: string | undefined) => {
     if (name) {
@@ -42,6 +59,7 @@ export function GCPHeader({
   }
 
   return (
+    
     <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-[#e0e0e0] z-50 flex items-center px-4 font-['Inter',_'Roboto',_sans-serif]">
       {/* Left section */}
       <div className="flex items-center gap-4">
@@ -72,10 +90,28 @@ export function GCPHeader({
 
       {/* Right section */}
       <div className="flex items-center gap-1 ml-auto">
-        {/* Notifications */}
-        <button className="p-2 hover:bg-gray-100 rounded-full transition-colors" title="Notifications">
-          <Bell className="w-5 h-5 text-gray-600" />
-        </button>
+        {/* Notifications - with dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
+            title="Notifications"
+          >
+            <Bell className="w-5 h-5 text-gray-600" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Dropdown Panel */}
+          <NotificationPanel 
+            isOpen={isNotificationPanelOpen}
+            onClose={() => setIsNotificationPanelOpen(false)}
+            onViewCourse={handleViewCourse}
+          />
+        </div>
 
         {/* Help */}
         <button className="p-2 hover:bg-gray-100 rounded-full transition-colors" title="Help">
@@ -109,6 +145,7 @@ export function GCPHeader({
             onLogout={onLogout}
             isOpen={isProfileOpen}
             onClose={() => setIsProfileOpen(false)}
+            onNotificationClick={() => setIsNotificationPanelOpen(true)}
           />
         </div>
       </div>

@@ -32,6 +32,7 @@ import {
 import { cn } from './utils'
 import { useAuth } from '@/hooks/useAuth'
 import { usePageVisibility } from '@/contexts/PageVisibilityContext'
+import { Portal } from './Portal'
 
 interface SidebarItem {
   icon: React.ReactNode
@@ -62,6 +63,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
     'Documentation': '/documentation',
     'TQF Master 2.0 Desktop': '/tqf-desktop',
     'Course Monitoring': '/course-monitoring',
+    'Course Planner': '/course-planner',
     'TQF Master 2.0': '/tqf-master',
     'Testing': '/testing',
     'Registration Simulator': '/registration-simulator',
@@ -79,6 +81,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
   const productItems: SidebarItem[] = [
     { icon: <Brain className="w-5 h-5" />, label: 'Course Monitoring', hasChevron: true, href: pageUrls['Course Monitoring'] },
     { icon: <Folder className="w-5 h-5" />, label: 'TQF Master 2.0', hasChevron: true, href: pageUrls['TQF Master 2.0'] },
+    { icon: <Brain className="w-5 h-5" />, label: 'Course Planner', hasChevron: true, href: pageUrls['Course Planner'], adminOnly: true },
     { icon: <GraduationCap className="w-5 h-5" />, label: 'Testing', hasChevron: true, href: pageUrls['Testing'] },
     { icon: <Database className="w-5 h-5" />, label: 'Registration Simulator', hasChevron: true, href: pageUrls['Registration Simulator'], adminOnly: true },
     { icon: <Code2 className="w-5 h-5" />, label: 'APIs & Services', hasChevron: true, href: pageUrls['APIs & Services'], adminOnly: true },
@@ -100,7 +103,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
   }
 
   return (
-    <>
+    <><Portal>
       {/* Backdrop */}
       <div 
         className={cn(
@@ -234,6 +237,7 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
         </div>
 
       </aside>
+      </Portal>
     </>
   )
 }
