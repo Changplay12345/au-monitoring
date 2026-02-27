@@ -126,33 +126,45 @@ export function CourseBlock({
   }, [activeNotification, notificationQueue, animationDuration, queueDelay])
   
   // Track seat changes in stacked courses (not the top one)
+  // Trigger glow when ANY course in stack changes seats
   useEffect(() => {
-    if (!stackedCourses || stackedCourses.length <= 1 || !isLongBlock) return
+    if (!stackedCourses || stackedCourses.length <= 1) return
     
     // Skip the first course (top of stack) - only track hidden courses
     const hiddenCourses = stackedCourses.slice(1)
+    let anyChanged = false
     
     hiddenCourses.forEach(c => {
       const key = `${c.courseCode}-${c.section}`
       const prevSeat = prevStackedSeatsRef.current.get(key)
       
       if (prevSeat !== undefined && prevSeat !== c.seatLeft) {
-        const change = c.seatLeft - prevSeat
-        const now = Date.now()
-        const notification: StackNotification = {
-          id: `${key}-${now}`,
-          courseCode: c.courseCode,
-          change,
-          timestamp: now,
-          isActive: true,
-        }
+        anyChanged = true
         
-        // Add to queue
-        setNotificationQueue(prev => [...prev, notification])
+        // Only add notification queue for long blocks
+        if (isLongBlock) {
+          const change = c.seatLeft - prevSeat
+          const now = Date.now()
+          const notification: StackNotification = {
+            id: `${key}-${now}`,
+            courseCode: c.courseCode,
+            change,
+            timestamp: now,
+            isActive: true,
+          }
+          setNotificationQueue(prev => [...prev, notification])
+        }
       }
       
       prevStackedSeatsRef.current.set(key, c.seatLeft)
     })
+    
+    // Trigger glow if any stacked course changed seats
+    if (anyChanged) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      setIsGlowing(true)
+      timeoutRef.current = setTimeout(() => setIsGlowing(false), 400)
+    }
   }, [stackedCourses, isLongBlock])
   
   // Handle seat change animation - trigger glow

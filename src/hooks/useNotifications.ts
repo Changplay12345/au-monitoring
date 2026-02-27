@@ -221,30 +221,48 @@ export function useNotifications(): UseNotificationsReturn {
         currentFullIds.forEach(id => readSet.add(id))
         updateReadNotifications(readSet)
       } else {
-        // Detect newly-full courses (transition from >0 to 0)
-        const newlyFull: string[] = []
-        currentFullIds.forEach(id => {
-          if (!prevFullCourseIds.has(id) && !notifiedCourseIds.has(id)) {
-            // This course just became full — ensure it's unread
-            readSet.delete(id)
-            resolvedSet.delete(id)
-            notifiedCourseIds.add(id)
-            newlyFull.push(id)
-          }
-        })
-        // Courses that left the full list (seats reopened) — allow re-notification
-        const reopened: string[] = []
-        prevFullCourseIds.forEach(id => {
-          if (!currentFullIds.has(id)) {
-            notifiedCourseIds.delete(id)
-            reopened.push(id)
-          }
-        })
-        if (newlyFull.length > 0) console.log(`[Notifications] Newly full (transition >0→0):`, newlyFull)
-        if (reopened.length > 0) console.log(`[Notifications] Seats reopened:`, reopened)
-        prevFullCourseIds = new Set(currentFullIds)
-        updateReadNotifications(readSet)
-        updateResolvedNotifications(resolvedSet)
+        // Detect DB reset: if previous had courses but current is very different, re-establish baseline
+        // This handles simulation restart where all seats reset
+        const prevSize = prevFullCourseIds.size
+        let intersection = 0
+        currentFullIds.forEach(id => { if (prevFullCourseIds.has(id)) intersection++ })
+        
+        // If previous had >5 courses and <20% overlap, treat as DB reset
+        const isDbReset = prevSize > 5 && intersection < prevSize * 0.2
+        
+        if (isDbReset) {
+          console.log(`[Notifications] DB reset detected (prev=${prevSize}, overlap=${intersection}). Re-establishing baseline.`)
+          prevFullCourseIds = new Set(currentFullIds)
+          notifiedCourseIds = new Set()
+          // Mark all current as read (baseline)
+          currentFullIds.forEach(id => readSet.add(id))
+          updateReadNotifications(readSet)
+        } else {
+          // Detect newly-full courses (transition from >0 to 0)
+          const newlyFull: string[] = []
+          currentFullIds.forEach(id => {
+            if (!prevFullCourseIds.has(id) && !notifiedCourseIds.has(id)) {
+              // This course just became full — ensure it's unread
+              readSet.delete(id)
+              resolvedSet.delete(id)
+              notifiedCourseIds.add(id)
+              newlyFull.push(id)
+            }
+          })
+          // Courses that left the full list (seats reopened) — allow re-notification
+          const reopened: string[] = []
+          prevFullCourseIds.forEach(id => {
+            if (!currentFullIds.has(id)) {
+              notifiedCourseIds.delete(id)
+              reopened.push(id)
+            }
+          })
+          if (newlyFull.length > 0) console.log(`[Notifications] Newly full (transition >0→0):`, newlyFull)
+          if (reopened.length > 0) console.log(`[Notifications] Seats reopened:`, reopened)
+          prevFullCourseIds = new Set(currentFullIds)
+          updateReadNotifications(readSet)
+          updateResolvedNotifications(resolvedSet)
+        }
       }
       
       // Map all notifications from database
