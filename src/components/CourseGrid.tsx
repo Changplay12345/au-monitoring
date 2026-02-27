@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
 import { CourseBlock, CSVCourse } from './CourseBlock'
 import { CourseGroup as SupabaseCourseGroup } from '@/lib/types'
-import { SwimlaneSchedule } from './SwimlaneSchedule'
+
 import { AnimatedNumber } from './AnimatedNumber'
 
 // Time axis configuration
@@ -81,6 +81,34 @@ function groupOverlappingCourses(courses: CSVCourse[]): CourseGroup[] {
   
   return groups
 }
+
+// Course with layer assignment for single-day grid view
+interface CourseWithLayer extends CSVCourse {
+  layer: number
+}
+
+// Assign vertical layers to courses for a single day (handles overlaps)
+function assignCourseLayers(courses: CSVCourse[]): { courses: CourseWithLayer[]; maxLayers: number } {
+  if (courses.length === 0) return { courses: [], maxLayers: 0 }
+
+  const sorted = [...courses].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+  const layerEnds: number[] = [] // Track end time per layer
+
+  const result: CourseWithLayer[] = sorted.map(course => {
+    const start = timeToMinutes(course.startTime)
+    let layer = layerEnds.findIndex(end => end <= start)
+    if (layer === -1) {
+      layer = layerEnds.length
+      layerEnds.push(0)
+    }
+    layerEnds[layer] = timeToMinutes(course.endTime)
+    return { ...course, layer }
+  })
+
+  return { courses: result, maxLayers: layerEnds.length }
+}
+
+const SEAT_WARN_THRESHOLD = 5
 
 // Centralized glow configuration - Change this number to adjust all glow sizes
 const GLOW_SIZE = 'md' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
@@ -263,6 +291,60 @@ export function CourseGrid() {
   const allCourses = Object.values(coursesByDay).flatMap(groups => 
     groups.flatMap(g => g.courses)
   )
+
+  // Processed courses for single-day planner-style grid view
+  const processedDayCourses = useMemo(() => {
+    if (filters.activeDay === 'ALL') return { courses: [] as CourseWithLayer[], maxLayers: 0 }
+    const dayCourses = allCourses.filter(c => c.day === filters.activeDay)
+    // Apply search + advanced filters
+    const filtered = dayCourses.filter(c => {
+      if (searchInput.trim()) {
+        const matchesSearch = c.courseCode.toLowerCase().includes(searchInput.toLowerCase()) ||
+          c.courseTitle.toLowerCase().includes(searchInput.toLowerCase())
+        if (!matchesSearch) return false
+      }
+      if (advancedFilters.prefix && c.prefix !== advancedFilters.prefix) return false
+      if (advancedFilters.section && c.section !== advancedFilters.section) return false
+      if (advancedFilters.instructor && c.instructor !== advancedFilters.instructor) return false
+      if (advancedFilters.seatMin && c.seatLeft < parseInt(advancedFilters.seatMin)) return false
+      if (advancedFilters.seatMax && c.seatLeft > parseInt(advancedFilters.seatMax)) return false
+      if (advancedFilters.timeStart) {
+        if (timeToMinutes(c.startTime) < timeToMinutes(advancedFilters.timeStart)) return false
+      }
+      if (advancedFilters.timeEnd) {
+        if (timeToMinutes(c.endTime) > timeToMinutes(advancedFilters.timeEnd)) return false
+      }
+      return true
+    })
+    return assignCourseLayers(filtered)
+  }, [filters.activeDay, allCourses, searchInput, advancedFilters])
+
+  // Track previous seats for blinking in day view
+  const prevDaySeatsRef = useRef<Map<string, number>>(new Map())
+  const [blinkingCourses, setBlinkingCourses] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    const newBlinks = new Set<string>()
+    processedDayCourses.courses.forEach(c => {
+      const id = `${c.courseCode}-${c.section}`
+      const prev = prevDaySeatsRef.current.get(id)
+      if (prev !== undefined && prev !== c.seatLeft) {
+        newBlinks.add(id)
+      }
+      prevDaySeatsRef.current.set(id, c.seatLeft)
+    })
+    if (newBlinks.size > 0) {
+      setBlinkingCourses(prev => new Set([...prev, ...newBlinks]))
+      const t = setTimeout(() => {
+        setBlinkingCourses(prev => {
+          const next = new Set(prev)
+          newBlinks.forEach(id => next.delete(id))
+          return next
+        })
+      }, 1000)
+      return () => clearTimeout(t)
+    }
+  }, [processedDayCourses])
 
   // Get the latest course data for selected group (real-time updates)
   const selectedGroup = useMemo(() => {
@@ -624,7 +706,7 @@ export function CourseGrid() {
 
       {/* Timetable container - relative for absolute positioned children */}
       <div className="relative">
-        {/* Swimlane View for individual days - slides like toilet paper roll */}
+        {/* Planner-style single-day grid for individual days */}
         {showDayTimetable && (
           <div 
             className={cn(
@@ -636,7 +718,139 @@ export function CourseGrid() {
               transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
-            <SwimlaneSchedule day={filters.activeDay as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'} courses={allCourses} />
+            {(() => {
+              const { courses: dayCourses, maxLayers } = processedDayCourses
+              const rowHeight = Math.max(3, maxLayers) * 52
+              const dayName = filters.activeDay !== 'ALL' ? filters.activeDay : ''
+
+              return (
+                <div className="relative">
+                  {/* Day title */}
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-lg font-bold text-gray-800">{dayName}</span>
+                    <span className="text-sm text-gray-400">{dayCourses.length} section{dayCourses.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* Timetable content */}
+                  <div style={{ width: '120%' }}>
+                    {/* Time ruler */}
+                    <div className="relative ml-[70px] h-5 mb-2">
+                      {ticks.map((tick, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-0 -translate-x-1/2 text-xs text-gray-500 font-semibold"
+                          style={{ left: `${tick.x}%` }}
+                        >
+                          {!tick.isLast && tick.time}
+                          <div className="w-px h-3 bg-gray-200 mx-auto mt-1" />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Time table box */}
+                    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
+                      <div
+                        className="relative"
+                        style={{ minHeight: `${rowHeight}px` }}
+                      >
+                        {/* Day label */}
+                        <div className="absolute left-0 top-0 bottom-0 w-[70px] flex items-center justify-center font-semibold text-gray-500 bg-white border-r border-gray-200 z-10">
+                          {dayName.slice(0, 3).toUpperCase()}
+                        </div>
+
+                        {/* Time slots grid */}
+                        <div
+                          className="ml-[70px] relative"
+                          style={{
+                            display: 'grid',
+                            gridTemplateRows: `repeat(${Math.max(3, maxLayers)}, minmax(56px, auto))`,
+                            gridTemplateColumns: `repeat(${CELLS}, 1fr)`,
+                            backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px)',
+                            backgroundSize: `${100 / CELLS}% 100%`,
+                            minHeight: `${rowHeight}px`,
+                          }}
+                        >
+                          {/* Course cards */}
+                          {dayCourses.map((course) => {
+                            const courseId = `${course.courseCode}-${course.section}`
+                            const courseStart = timeToMinutes(course.startTime)
+                            const courseEnd = timeToMinutes(course.endTime)
+                            const leftPercent = ((courseStart - START_MIN) / SPAN_MIN) * 100
+                            const widthPercent = ((courseEnd - courseStart) / SPAN_MIN) * 100
+
+                            const seatRatio = course.seatLimit > 0 ? course.seatLeft / course.seatLimit : 0
+                            const statusColor = course.seatLeft === 0 ? 'bg-red-100 border-red-300 hover:bg-red-50' :
+                              seatRatio < 0.25 ? 'bg-orange-100 border-orange-300 hover:bg-orange-50' :
+                              seatRatio < 0.5 ? 'bg-amber-100 border-amber-300 hover:bg-amber-50' :
+                              'bg-emerald-100 border-emerald-300 hover:bg-emerald-50'
+
+                            const badgeColor = course.seatLeft === 0 ? 'bg-red-500' :
+                              seatRatio < 0.25 ? 'bg-orange-500' :
+                              seatRatio < 0.5 ? 'bg-amber-500' :
+                              'bg-emerald-500'
+
+                            const isLowSeat = course.seatLeft <= SEAT_WARN_THRESHOLD && course.seatLeft > 0
+                            const isBlink = blinkingCourses.has(courseId)
+
+                            return (
+                              <div
+                                key={courseId}
+                                className={cn(
+                                  "absolute px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all duration-200",
+                                  "hover:shadow-md hover:scale-[1.02] hover:z-20",
+                                  statusColor,
+                                  isLowSeat && 'seat-warning',
+                                  isBlink && !isLowSeat && 'seat-changed'
+                                )}
+                                style={{
+                                  left: `${leftPercent}%`,
+                                  width: `${widthPercent}%`,
+                                  top: `${course.layer * 52}px`,
+                                  height: '48px',
+                                  zIndex: 10 + course.layer,
+                                }}
+                                onClick={() => handleCourseClick([course])}
+                              >
+                                <div className="flex flex-col h-full justify-between">
+                                  <div className="flex items-center justify-between">
+                                    <div className="font-bold text-gray-800 text-sm truncate">
+                                      {course.courseCode}
+                                    </div>
+                                    <span className={cn(
+                                      "px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0",
+                                      badgeColor
+                                    )}>
+                                      <AnimatedNumber value={course.seatLeft} />
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate">
+                                    {formatTime(course.startTime)} - {formatTime(course.endTime)}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+
+                          {/* Empty state */}
+                          {dayCourses.length === 0 && (
+                            <div
+                              className="absolute flex items-center justify-center text-gray-400 text-sm italic"
+                              style={{
+                                left: '50%',
+                                top: '50%',
+                                transform: 'translate(-50%, -50%)',
+                              }}
+                            >
+                              No courses on {dayName}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
 

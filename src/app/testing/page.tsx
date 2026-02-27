@@ -48,6 +48,7 @@ interface ParsedTranscript {
     name: string;
     id: string;
     major: string;
+    totalCredits: number;
   };
   semesters: TranscriptSemester[];
 }
@@ -179,8 +180,8 @@ function parseTranscriptText(text: string): ParsedTranscript | null {
   // Extract name (uppercase line)
   const nameMatch = text.match(/\n([A-Z][A-Z\s]{3,}[A-Z])\n/);
 
-  // Extract major
-  const majorMatch = text.match(/([A-Z][A-Z\s]+ENGINEERING)/);
+  // Extract major (stop before digits or "CREDITS")
+  const majorMatch = text.match(/([A-Z][A-Z\s]*ENGINEERING)(?:\s|$)/);
 
   // Split by semester labels
   const semesterLabels = text.match(/SEMESTER\s+\d\/\d{4}/g) || [];
@@ -207,11 +208,18 @@ function parseTranscriptText(text: string): ParsedTranscript | null {
   console.log('[Transcript Parser] Semesters found:', semesters.length);
   console.log('[Transcript Parser] Total courses:', semesters.reduce((s, sem) => s + sem.courses.length, 0));
 
+  // Calculate total credits from all semesters
+  const totalCredits = semesters.reduce(
+    (sum, sem) => sum + sem.courses.reduce((s, c) => s + c.credits, 0),
+    0
+  );
+
   return {
     student: {
       name: nameMatch ? nameMatch[1].trim() : 'Unknown',
       id: idMatch[1],
       major: majorMatch ? majorMatch[1].trim() : 'Unknown',
+      totalCredits,
     },
     semesters,
   };
@@ -860,6 +868,10 @@ export default function TestingPage() {
                       <div>
                         <div className="text-[10px] font-medium text-gray-400 uppercase">Major</div>
                         <div className="text-xs font-semibold text-gray-800 leading-tight">{parsedTranscript.student.major}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-medium text-gray-400 uppercase">Credits</div>
+                        <div className="text-xs font-semibold text-gray-800">{parsedTranscript.student.totalCredits}</div>
                       </div>
                     </div>
 

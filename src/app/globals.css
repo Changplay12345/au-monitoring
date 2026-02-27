@@ -16,6 +16,35 @@
   animation: float-up 1.5s ease-out forwards;
 }
 
+/* Seat warning blink - subtle border pulse for low-seat courses */
+@keyframes seatWarningBlink {
+  0%, 100% {
+    border-color: inherit;
+    box-shadow: none;
+  }
+  50% {
+    border-color: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+  }
+}
+
+.seat-warning {
+  animation: seatWarningBlink 1s ease-in-out infinite;
+}
+
+/* Seat changed flash - brief blink then stop */
+@keyframes seatChangedFlash {
+  0% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  25% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  75% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.5); }
+  100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.seat-changed {
+  animation: seatChangedFlash 1s ease-in-out;
+}
+
 /* Day tab transition - fade + slight horizontal slide */
 @keyframes dayFadeSlide {
   from {
