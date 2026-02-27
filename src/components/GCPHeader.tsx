@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   Menu, 
@@ -33,12 +33,35 @@ export function GCPHeader({
 }: GCPHeaderProps) {
   const router = useRouter()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const { unreadCount } = useNotifications()
+  const notificationWrapperRef = useRef<HTMLDivElement>(null)
+
+  // Click-outside handler: close notification dropdown if click is outside both icon and dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        notificationWrapperRef.current &&
+        !notificationWrapperRef.current.contains(event.target as Node)
+      ) {
+        setIsNotificationOpen(false)
+      }
+    }
+    if (isNotificationOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isNotificationOpen])
+
+  const toggleNotification = useCallback(() => {
+    setIsNotificationOpen(prev => !prev)
+  }, [])
 
   const handleViewCourse = (courseCode: string, section?: string) => {
     // Close notification panel first to prevent Portal DOM errors during navigation
-    setIsNotificationPanelOpen(false)
+    setIsNotificationOpen(false)
     // Longer delay to allow React to fully unmount all portals before navigation
     setTimeout(() => {
       const searchParam = encodeURIComponent(courseCode)
@@ -90,10 +113,9 @@ export function GCPHeader({
       {/* Right section */}
       <div className="flex items-center gap-1 ml-auto">
         {/* Notifications - with dropdown */}
-        <div className="relative">
+        <div className="relative" ref={notificationWrapperRef}>
           <button 
-            onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
-            onMouseDown={(e) => { if (isNotificationPanelOpen) e.stopPropagation() }}
+            onClick={toggleNotification}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
             title="Notifications"
           >
@@ -107,8 +129,8 @@ export function GCPHeader({
 
           {/* Notification Dropdown Panel */}
           <NotificationPanel 
-            isOpen={isNotificationPanelOpen}
-            onClose={() => setIsNotificationPanelOpen(false)}
+            isOpen={isNotificationOpen}
+            onClose={() => setIsNotificationOpen(false)}
             onViewCourse={handleViewCourse}
           />
         </div>
@@ -140,7 +162,7 @@ export function GCPHeader({
             onLogout={onLogout}
             isOpen={isProfileOpen}
             onClose={() => setIsProfileOpen(false)}
-            onNotificationClick={() => setIsNotificationPanelOpen(true)}
+            onNotificationClick={() => setIsNotificationOpen(true)}
           />
         </div>
       </div>

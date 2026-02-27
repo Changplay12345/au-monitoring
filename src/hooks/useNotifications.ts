@@ -202,6 +202,8 @@ export function useNotifications(): UseNotificationsReturn {
         throw fetchError
       }
 
+      console.log(`[Notifications] Fetched from ${TEST_TABLE}: ${(data || []).length} full courses`)
+
       const readSet = getReadNotifications()
       const resolvedSet = getResolvedNotifications()
 
@@ -214,25 +216,32 @@ export function useNotifications(): UseNotificationsReturn {
       if (isInitialNotificationLoad) {
         prevFullCourseIds = new Set(currentFullIds)
         isInitialNotificationLoad = false
+        console.log(`[Notifications] Initial load: ${currentFullIds.size} already-full courses stored as baseline (no notification)`)
         // Auto-mark all initially-full courses as read so they don't appear as "new"
         currentFullIds.forEach(id => readSet.add(id))
         updateReadNotifications(readSet)
       } else {
         // Detect newly-full courses (transition from >0 to 0)
+        const newlyFull: string[] = []
         currentFullIds.forEach(id => {
           if (!prevFullCourseIds.has(id) && !notifiedCourseIds.has(id)) {
             // This course just became full — ensure it's unread
             readSet.delete(id)
             resolvedSet.delete(id)
             notifiedCourseIds.add(id)
+            newlyFull.push(id)
           }
         })
         // Courses that left the full list (seats reopened) — allow re-notification
+        const reopened: string[] = []
         prevFullCourseIds.forEach(id => {
           if (!currentFullIds.has(id)) {
             notifiedCourseIds.delete(id)
+            reopened.push(id)
           }
         })
+        if (newlyFull.length > 0) console.log(`[Notifications] Newly full (transition >0→0):`, newlyFull)
+        if (reopened.length > 0) console.log(`[Notifications] Seats reopened:`, reopened)
         prevFullCourseIds = new Set(currentFullIds)
         updateReadNotifications(readSet)
         updateResolvedNotifications(resolvedSet)

@@ -49,22 +49,6 @@ export function NotificationPanel({ isOpen, onClose, onViewCourse }: Notificatio
   const [viewCourseNotification, setViewCourseNotification] = useState<Notification | null>(null)
   const [isViewCoursePopupOpen, setIsViewCoursePopupOpen] = useState(false)
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        onClose()
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen, onClose])
-
   // Filter notifications with useMemo for performance
   const filteredNotifications = useMemo(() => {
     return notifications.filter(n => {

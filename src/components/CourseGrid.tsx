@@ -111,6 +111,87 @@ function assignCourseLayers(courses: CSVCourse[]): { courses: CourseWithLayer[];
 // Centralized glow configuration - Change this number to adjust all glow sizes
 const GLOW_SIZE = 'md' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
+// Get glow color based on seats (same as CourseBlock)
+function getDayGlowColor(seatLeft: number, seatLimit: number): string {
+  if (seatLimit === 0) return 'shadow-gray-400/50'
+  const ratio = seatLeft / seatLimit
+  if (ratio >= 0.5) return 'shadow-emerald-400/60'
+  if (ratio >= 0.25) return 'shadow-amber-400/60'
+  if (ratio > 0) return 'shadow-orange-400/60'
+  return 'shadow-red-400/60'
+}
+
+// Day view course card with glow on seat change (same logic as CourseBlock)
+function DayCourseCard({
+  course,
+  leftPercent,
+  widthPercent,
+  statusColor,
+  badgeColor,
+  onClick,
+}: {
+  course: CourseWithLayer
+  leftPercent: number
+  widthPercent: number
+  statusColor: string
+  badgeColor: string
+  onClick: () => void
+}) {
+  const [isGlowing, setIsGlowing] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleSeatChange = useCallback((direction: 'up' | 'down' | null) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    if (direction) {
+      setIsGlowing(true)
+      timeoutRef.current = setTimeout(() => setIsGlowing(false), 400)
+    } else {
+      setIsGlowing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
+  }, [])
+
+  return (
+    <div
+      className={cn(
+        "absolute px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all duration-200",
+        "hover:shadow-md hover:scale-[1.02] hover:z-20",
+        statusColor,
+        isGlowing && `shadow-${GLOW_SIZE}`,
+        isGlowing && getDayGlowColor(course.seatLeft, course.seatLimit)
+      )}
+      style={{
+        left: `${leftPercent}%`,
+        width: `${widthPercent}%`,
+        top: `${course.layer * 52}px`,
+        height: '48px',
+        zIndex: isGlowing ? 100 : 10 + course.layer,
+      }}
+      onClick={onClick}
+    >
+      <div className="flex flex-col h-full justify-between">
+        <div className="flex items-center justify-between">
+          <div className="font-bold text-gray-800 text-sm truncate">
+            {course.courseCode}
+          </div>
+          <span className={cn(
+            "px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0",
+            badgeColor
+          )}>
+            <AnimatedNumber value={course.seatLeft} onChangeDirection={handleSeatChange} />
+          </span>
+        </div>
+        <div className="text-[10px] text-gray-500 truncate leading-tight">
+          {formatTime(course.startTime)} - {formatTime(course.endTime)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function CourseGrid() {
   const [glowingCourses, setGlowingCourses] = useState<Set<string>>(new Set())
   const glowTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
@@ -755,39 +836,15 @@ export function CourseGrid() {
                               'bg-emerald-500'
 
                             return (
-                              <div
+                              <DayCourseCard
                                 key={courseId}
-                                className={cn(
-                                  "absolute px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all duration-200",
-                                  "hover:shadow-md hover:scale-[1.02] hover:z-20",
-                                  statusColor
-                                )}
-                                style={{
-                                  left: `${leftPercent}%`,
-                                  width: `${widthPercent}%`,
-                                  top: `${course.layer * 52}px`,
-                                  height: '48px',
-                                  zIndex: 10 + course.layer,
-                                }}
+                                course={course}
+                                leftPercent={leftPercent}
+                                widthPercent={widthPercent}
+                                statusColor={statusColor}
+                                badgeColor={badgeColor}
                                 onClick={() => handleCourseClick([course])}
-                              >
-                                <div className="flex flex-col h-full justify-between">
-                                  <div className="flex items-center justify-between">
-                                    <div className="font-bold text-gray-800 text-sm truncate">
-                                      {course.courseCode}
-                                    </div>
-                                    <span className={cn(
-                                      "px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0",
-                                      badgeColor
-                                    )}>
-                                      <AnimatedNumber value={course.seatLeft} />
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-gray-500 truncate leading-tight">
-                                    {formatTime(course.startTime)} - {formatTime(course.endTime)}
-                                  </div>
-                                </div>
-                              </div>
+                              />
                             )
                           })}
 
