@@ -9,15 +9,23 @@ import { normalizeCourse, toMinutes } from '@/lib/utils'
 let prevSeatValuesMap: Map<string, number> = new Map()
 let isFirstLoad = true
 
-// Custom event for newly-full courses
-export const COURSE_FULL_EVENT = 'course-became-full'
-export function dispatchCourseFullEvent(courseId: string, courseCode: string, section: string) {
-  if (typeof window !== 'undefined') {
-    console.log(`[useCourses] 🔔 Dispatching COURSE_FULL_EVENT for ${courseId}`)
-    window.dispatchEvent(new CustomEvent(COURSE_FULL_EVENT, {
-      detail: { courseId, courseCode, section }
-    }))
-  }
+// Queue of newly-full courses that useNotifications can read
+let newlyFullCoursesQueue: Array<{ courseId: string; courseCode: string; section: string }> = []
+
+// Export functions for useNotifications to access the queue
+export function getNewlyFullCourses() {
+  const courses = [...newlyFullCoursesQueue]
+  newlyFullCoursesQueue = [] // Clear after reading
+  return courses
+}
+
+export function hasNewlyFullCourses() {
+  return newlyFullCoursesQueue.length > 0
+}
+
+function addNewlyFullCourse(courseId: string, courseCode: string, section: string) {
+  console.log(`[useCourses] � Adding to newly-full queue: ${courseId}`)
+  newlyFullCoursesQueue.push({ courseId, courseCode, section })
 }
 
 // Get the appropriate client - use server client if available for bypassing RLS
@@ -137,8 +145,22 @@ export function useCourses() {
           console.log('[useCourses] Realtime event received:', payload.eventType, payload)
           
           if (payload.eventType === 'INSERT') {
-            console.log('[useCourses] INSERT - New course added')
-            setRawCourses(prev => [...prev, payload.new as Course])
+            const newCourse = payload.new as Course
+            const courseId = `${newCourse['Course Code']}-${newCourse['Section']}`
+            const seatLeft = newCourse['Seat Left']
+            
+            console.log('[useCourses] INSERT - Course:', newCourse['Course Code'], 
+              'Section:', newCourse['Section'], 'Seat Left:', seatLeft)
+            
+            // Track this course's seat value
+            prevSeatValuesMap.set(courseId, seatLeft)
+            
+            // If inserted with 0 seats AND we're past initial load, it's a newly full course
+            if (seatLeft === 0 && !isFirstLoad) {
+              addNewlyFullCourse(courseId, newCourse['Course Code'], newCourse['Section'])
+            }
+            
+            setRawCourses(prev => [...prev, newCourse])
           } else if (payload.eventType === 'UPDATE') {
             const updatedCourse = payload.new as Course
             const courseId = `${updatedCourse['Course Code']}-${updatedCourse['Section']}`
@@ -151,8 +173,7 @@ export function useCourses() {
             
             // Detect transition from >0 to 0 (course just became full)
             if (prevSeatLeft !== undefined && prevSeatLeft > 0 && newSeatLeft === 0) {
-              console.log(`[useCourses] 🚨 Course ${courseId} just became FULL!`)
-              dispatchCourseFullEvent(courseId, updatedCourse['Course Code'], updatedCourse['Section'])
+              addNewlyFullCourse(courseId, updatedCourse['Course Code'], updatedCourse['Section'])
             }
             
             // Update tracking

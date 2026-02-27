@@ -10,6 +10,7 @@ import {
   TimeConflictResult,
   InstructorSchedule 
 } from '@/types/notification'
+import { getNewlyFullCourses } from './useCourses'
 
 const TEST_TABLE = 'data_vme_test'
 const PLANNER_TABLE = 'data_vme_planner'
@@ -521,34 +522,33 @@ export function useNotifications(): UseNotificationsReturn {
     return notifications.filter(n => n.status === 'unread').length
   }, [notifications])
 
-  // Listen for COURSE_FULL_EVENT from useCourses (realtime seat transition detection)
+  // Poll for newly-full courses from useCourses queue
   useEffect(() => {
-    const handleCourseFull = (event: Event) => {
-      const { courseId } = (event as CustomEvent).detail
-      console.log(`[Notifications] 🔔 Received COURSE_FULL_EVENT for ${courseId}`)
-      
-      // Mark this course as unread (remove from read set)
-      const readSet = getReadNotifications()
-      readSet.delete(courseId)
-      updateReadNotifications(readSet)
-      
-      // Remove from notified set so it shows as new
-      notifiedCourseIds.delete(courseId)
-      
-      // Force refetch to get the notification
-      fetchNotificationsRef.current(true)
-    }
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('course-became-full', handleCourseFull)
-    }
-    
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('course-became-full', handleCourseFull)
+    const pollInterval = setInterval(() => {
+      const newlyFull = getNewlyFullCourses()
+      if (newlyFull.length > 0) {
+        console.log(`[Notifications] 🔔 Found ${newlyFull.length} newly-full courses:`, newlyFull.map(c => c.courseId))
+        
+        const readSet = getReadNotifications()
+        const resolvedSet = getResolvedNotifications()
+        
+        newlyFull.forEach(({ courseId }) => {
+          // Mark as unread
+          readSet.delete(courseId)
+          resolvedSet.delete(courseId)
+          notifiedCourseIds.delete(courseId)
+        })
+        
+        updateReadNotifications(readSet)
+        updateResolvedNotifications(resolvedSet)
+        
+        // Force refetch to show notifications
+        fetchNotificationsRef.current(true)
       }
-    }
-  }, [getReadNotifications, updateReadNotifications])
+    }, 500) // Poll every 500ms
+    
+    return () => clearInterval(pollInterval)
+  }, [getReadNotifications, getResolvedNotifications, updateReadNotifications, updateResolvedNotifications])
 
   // Initial fetch and real-time subscription to data_vme_test
   useEffect(() => {
