@@ -270,6 +270,12 @@ export function useNotifications(): UseNotificationsReturn {
       // Filter out cleared notifications
       const mappedNotifications = allMappedNotifications.filter(n => !clearedSet.has(n.id))
       
+      const unreadNotifs = mappedNotifications.filter(n => n.status === 'unread')
+      console.log(`[Notifications] Setting ${mappedNotifications.length} notifications (${unreadNotifs.length} unread)`)
+      if (unreadNotifs.length > 0) {
+        console.log(`[Notifications] Unread notifications:`, unreadNotifs.map(n => n.id))
+      }
+      
       setNotifications(mappedNotifications)
       setHasFetchedOnce(true)
     } catch (err: any) {
