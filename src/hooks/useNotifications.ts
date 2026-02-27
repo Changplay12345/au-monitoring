@@ -531,16 +531,20 @@ export function useNotifications(): UseNotificationsReturn {
         
         const readSet = getReadNotifications()
         const resolvedSet = getResolvedNotifications()
+        const clearedSet = getClearedNotifications()
         
         newlyFull.forEach(({ courseId }) => {
-          // Mark as unread
+          // Mark as unread - remove from ALL sets so it shows as new
           readSet.delete(courseId)
           resolvedSet.delete(courseId)
+          clearedSet.delete(courseId)
           notifiedCourseIds.delete(courseId)
+          console.log(`[Notifications] Cleared all flags for ${courseId}`)
         })
         
         updateReadNotifications(readSet)
         updateResolvedNotifications(resolvedSet)
+        updateClearedNotifications(clearedSet)
         
         // Force refetch to show notifications
         fetchNotificationsRef.current(true)
@@ -548,7 +552,7 @@ export function useNotifications(): UseNotificationsReturn {
     }, 500) // Poll every 500ms
     
     return () => clearInterval(pollInterval)
-  }, [getReadNotifications, getResolvedNotifications, updateReadNotifications, updateResolvedNotifications])
+  }, [getReadNotifications, getResolvedNotifications, getClearedNotifications, updateReadNotifications, updateResolvedNotifications, updateClearedNotifications])
 
   // Initial fetch and real-time subscription to data_vme_test
   useEffect(() => {
