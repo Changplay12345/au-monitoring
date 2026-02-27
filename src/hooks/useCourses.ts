@@ -1,9 +1,24 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, createServerClient } from '@/lib/supabase'
 import { Course, NormalizedCourse, CourseGroup, FilterState, DAYS } from '@/lib/types'
 import { normalizeCourse, toMinutes } from '@/lib/utils'
+
+// Module-level tracking for seat transitions (shared across hook instances)
+let prevSeatValuesMap: Map<string, number> = new Map()
+let isFirstLoad = true
+
+// Custom event for newly-full courses
+export const COURSE_FULL_EVENT = 'course-became-full'
+export function dispatchCourseFullEvent(courseId: string, courseCode: string, section: string) {
+  if (typeof window !== 'undefined') {
+    console.log(`[useCourses] 🔔 Dispatching COURSE_FULL_EVENT for ${courseId}`)
+    window.dispatchEvent(new CustomEvent(COURSE_FULL_EVENT, {
+      detail: { courseId, courseCode, section }
+    }))
+  }
+}
 
 // Get the appropriate client - use server client if available for bypassing RLS
 const getClient = () => {
@@ -72,7 +87,20 @@ export function useCourses() {
       }
 
       console.log('[useCourses] Fetched', result.count, 'courses from', tableToFetch)
-      setRawCourses((result.data || []).filter(Boolean) as Course[])
+      
+      // Initialize seat tracking on first load
+      const courses = (result.data || []).filter(Boolean) as Course[]
+      if (isFirstLoad) {
+        prevSeatValuesMap.clear()
+        courses.forEach(c => {
+          const id = `${c['Course Code']}-${c['Section']}`
+          prevSeatValuesMap.set(id, c['Seat Left'])
+        })
+        isFirstLoad = false
+        console.log(`[useCourses] Initialized seat tracking for ${prevSeatValuesMap.size} courses`)
+      }
+      
+      setRawCourses(courses)
       setIsLoading(false)
     } catch (error) {
       console.error('Unexpected fetch error:', error)
@@ -113,10 +141,22 @@ export function useCourses() {
             setRawCourses(prev => [...prev, payload.new as Course])
           } else if (payload.eventType === 'UPDATE') {
             const updatedCourse = payload.new as Course
+            const courseId = `${updatedCourse['Course Code']}-${updatedCourse['Section']}`
+            const newSeatLeft = updatedCourse['Seat Left']
+            const prevSeatLeft = prevSeatValuesMap.get(courseId)
+            
             console.log('[useCourses] UPDATE - Course:', updatedCourse['Course Code'], 
               'Section:', updatedCourse['Section'],
-              'Seat Used:', updatedCourse['Seat Used'],
-              'Seat Left:', updatedCourse['Seat Left'])
+              'Seat Left:', prevSeatLeft, '→', newSeatLeft)
+            
+            // Detect transition from >0 to 0 (course just became full)
+            if (prevSeatLeft !== undefined && prevSeatLeft > 0 && newSeatLeft === 0) {
+              console.log(`[useCourses] 🚨 Course ${courseId} just became FULL!`)
+              dispatchCourseFullEvent(courseId, updatedCourse['Course Code'], updatedCourse['Section'])
+            }
+            
+            // Update tracking
+            prevSeatValuesMap.set(courseId, newSeatLeft)
             
             // Find and update the specific course
             setRawCourses(prev => {
@@ -126,19 +166,6 @@ export function useCourses() {
                   ? updatedCourse 
                   : c
               )
-              
-              // Log if course was actually updated
-              const wasUpdated = prev.some(c => 
-                c['Course Code'] === updatedCourse['Course Code'] &&
-                c['Section'] === updatedCourse['Section']
-              )
-              
-              if (wasUpdated) {
-                console.log('[useCourses] Successfully updated course in state')
-              } else {
-                console.log('[useCourses] Course not found in current state')
-              }
-              
               return updated
             })
           } else if (payload.eventType === 'DELETE') {

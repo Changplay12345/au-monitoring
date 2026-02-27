@@ -521,6 +521,35 @@ export function useNotifications(): UseNotificationsReturn {
     return notifications.filter(n => n.status === 'unread').length
   }, [notifications])
 
+  // Listen for COURSE_FULL_EVENT from useCourses (realtime seat transition detection)
+  useEffect(() => {
+    const handleCourseFull = (event: Event) => {
+      const { courseId } = (event as CustomEvent).detail
+      console.log(`[Notifications] 🔔 Received COURSE_FULL_EVENT for ${courseId}`)
+      
+      // Mark this course as unread (remove from read set)
+      const readSet = getReadNotifications()
+      readSet.delete(courseId)
+      updateReadNotifications(readSet)
+      
+      // Remove from notified set so it shows as new
+      notifiedCourseIds.delete(courseId)
+      
+      // Force refetch to get the notification
+      fetchNotificationsRef.current(true)
+    }
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('course-became-full', handleCourseFull)
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('course-became-full', handleCourseFull)
+      }
+    }
+  }, [getReadNotifications, updateReadNotifications])
+
   // Initial fetch and real-time subscription to data_vme_test
   useEffect(() => {
     // Initial fetch (force on mount)
