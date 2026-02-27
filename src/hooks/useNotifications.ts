@@ -212,6 +212,9 @@ export function useNotifications(): UseNotificationsReturn {
         (data || []).map(r => `${r["Course Code"]}-${r["Section"]}`)
       )
 
+      console.log(`[Notifications] State: isInitialLoad=${isInitialNotificationLoad}, prevSize=${prevFullCourseIds.size}, currentSize=${currentFullIds.size}`)
+      console.log(`[Notifications] Current full IDs:`, Array.from(currentFullIds).slice(0, 10), currentFullIds.size > 10 ? `... (${currentFullIds.size} total)` : '')
+
       // On initial load: store baseline, auto-mark all as read
       if (isInitialNotificationLoad) {
         prevFullCourseIds = new Set(currentFullIds)
@@ -240,15 +243,24 @@ export function useNotifications(): UseNotificationsReturn {
         } else {
           // Detect newly-full courses (transition from >0 to 0)
           const newlyFull: string[] = []
+          const alreadyNotified: string[] = []
+          const alreadyInPrev: string[] = []
           currentFullIds.forEach(id => {
-            if (!prevFullCourseIds.has(id) && !notifiedCourseIds.has(id)) {
-              // This course just became full — ensure it's unread
-              readSet.delete(id)
-              resolvedSet.delete(id)
-              notifiedCourseIds.add(id)
-              newlyFull.push(id)
+            if (!prevFullCourseIds.has(id)) {
+              if (!notifiedCourseIds.has(id)) {
+                // This course just became full — ensure it's unread
+                readSet.delete(id)
+                resolvedSet.delete(id)
+                notifiedCourseIds.add(id)
+                newlyFull.push(id)
+              } else {
+                alreadyNotified.push(id)
+              }
+            } else {
+              alreadyInPrev.push(id)
             }
           })
+          console.log(`[Notifications] Comparison: ${alreadyInPrev.length} already in prev, ${alreadyNotified.length} already notified, ${newlyFull.length} newly full`)
           // Courses that left the full list (seats reopened) — allow re-notification
           const reopened: string[] = []
           prevFullCourseIds.forEach(id => {
