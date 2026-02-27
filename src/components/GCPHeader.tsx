@@ -93,6 +93,7 @@ export function GCPHeader({
         <div className="relative">
           <button 
             onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+            onMouseDown={(e) => { if (isNotificationPanelOpen) e.stopPropagation() }}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
             title="Notifications"
           >

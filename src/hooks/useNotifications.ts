@@ -94,6 +94,11 @@ let clearedNotificationsSet: Set<string> = loadSetFromStorage(STORAGE_KEY_CLEARE
 // Track when each notification was first seen (for sorting by newest first)
 let notificationTimestamps: Map<string, string> = loadMapFromStorage(STORAGE_KEY_TIMESTAMPS)
 
+// Track full-course transitions: only notify when seatsLeft goes from >0 to 0
+let prevFullCourseIds: Set<string> = new Set()
+let isInitialNotificationLoad: boolean = true
+let notifiedCourseIds: Set<string> = new Set()
+
 export function useNotifications(): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -199,6 +204,39 @@ export function useNotifications(): UseNotificationsReturn {
 
       const readSet = getReadNotifications()
       const resolvedSet = getResolvedNotifications()
+
+      // Build current full-course ID set
+      const currentFullIds = new Set<string>(
+        (data || []).map(r => `${r["Course Code"]}-${r["Section"]}`)
+      )
+
+      // On initial load: store baseline, auto-mark all as read
+      if (isInitialNotificationLoad) {
+        prevFullCourseIds = new Set(currentFullIds)
+        isInitialNotificationLoad = false
+        // Auto-mark all initially-full courses as read so they don't appear as "new"
+        currentFullIds.forEach(id => readSet.add(id))
+        updateReadNotifications(readSet)
+      } else {
+        // Detect newly-full courses (transition from >0 to 0)
+        currentFullIds.forEach(id => {
+          if (!prevFullCourseIds.has(id) && !notifiedCourseIds.has(id)) {
+            // This course just became full — ensure it's unread
+            readSet.delete(id)
+            resolvedSet.delete(id)
+            notifiedCourseIds.add(id)
+          }
+        })
+        // Courses that left the full list (seats reopened) — allow re-notification
+        prevFullCourseIds.forEach(id => {
+          if (!currentFullIds.has(id)) {
+            notifiedCourseIds.delete(id)
+          }
+        })
+        prevFullCourseIds = new Set(currentFullIds)
+        updateReadNotifications(readSet)
+        updateResolvedNotifications(resolvedSet)
+      }
       
       // Map all notifications from database
       const allMappedNotifications = (data || [])
@@ -206,10 +244,6 @@ export function useNotifications(): UseNotificationsReturn {
       
       // Get current cleared set
       let clearedSet = getClearedNotifications()
-      
-      // Note: We no longer auto-reset session states when all notifications are cleared.
-      // The cleared/read/resolved states should persist until page refresh.
-      // If user wants to see notifications again, they need to refresh the page.
       
       // Filter out cleared notifications
       const mappedNotifications = allMappedNotifications.filter(n => !clearedSet.has(n.id))
@@ -319,6 +353,10 @@ export function useNotifications(): UseNotificationsReturn {
     resolvedNotificationsSet = new Set<string>()
     clearedNotificationsSet = new Set<string>()
     notificationTimestamps = new Map<string, string>()
+    // Reset transition tracking
+    prevFullCourseIds = new Set()
+    isInitialNotificationLoad = true
+    notifiedCourseIds = new Set()
     
     // Clear localStorage
     if (typeof window !== 'undefined') {

@@ -21,6 +21,7 @@ interface NotificationItemProps {
   onAddSection: (notification: Notification) => void
   onViewCourse: (notification: Notification) => void
   onClear: (id: string) => void
+  index?: number
 }
 
 export function NotificationItem({ 
@@ -28,7 +29,8 @@ export function NotificationItem({
   onMarkAsRead, 
   onAddSection,
   onViewCourse,
-  onClear
+  onClear,
+  index = 0
 }: NotificationItemProps) {
   const [isRemoving, setIsRemoving] = useState(false)
   const getIcon = (type: NotificationType) => {
@@ -100,6 +102,9 @@ export function NotificationItem({
         notification.status === 'unread' && "bg-red-50/50",
         isRemoving && "opacity-0 scale-95 -translate-x-2"
       )}
+      style={{
+        animation: `notifEnter 200ms ease-out ${index * 60}ms both`,
+      }}
     >
       {/* Individual Clear Button */}
       <button

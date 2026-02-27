@@ -108,8 +108,6 @@ function assignCourseLayers(courses: CSVCourse[]): { courses: CourseWithLayer[];
   return { courses: result, maxLayers: layerEnds.length }
 }
 
-const SEAT_WARN_THRESHOLD = 5
-
 // Centralized glow configuration - Change this number to adjust all glow sizes
 const GLOW_SIZE = 'md' // Options: 'sm', '', 'md', 'lg', 'xl', '2xl'
 
@@ -318,33 +316,6 @@ export function CourseGrid() {
     })
     return assignCourseLayers(filtered)
   }, [filters.activeDay, allCourses, searchInput, advancedFilters])
-
-  // Track previous seats for blinking in day view
-  const prevDaySeatsRef = useRef<Map<string, number>>(new Map())
-  const [blinkingCourses, setBlinkingCourses] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
-    const newBlinks = new Set<string>()
-    processedDayCourses.courses.forEach(c => {
-      const id = `${c.courseCode}-${c.section}`
-      const prev = prevDaySeatsRef.current.get(id)
-      if (prev !== undefined && prev !== c.seatLeft) {
-        newBlinks.add(id)
-      }
-      prevDaySeatsRef.current.set(id, c.seatLeft)
-    })
-    if (newBlinks.size > 0) {
-      setBlinkingCourses(prev => new Set([...prev, ...newBlinks]))
-      const t = setTimeout(() => {
-        setBlinkingCourses(prev => {
-          const next = new Set(prev)
-          newBlinks.forEach(id => next.delete(id))
-          return next
-        })
-      }, 1000)
-      return () => clearTimeout(t)
-    }
-  }, [processedDayCourses])
 
   // Get the latest course data for selected group (real-time updates)
   const selectedGroup = useMemo(() => {
@@ -725,12 +696,6 @@ export function CourseGrid() {
 
               return (
                 <div className="relative">
-                  {/* Day title */}
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="text-lg font-bold text-gray-800">{dayName}</span>
-                    <span className="text-sm text-gray-400">{dayCourses.length} section{dayCourses.length !== 1 ? 's' : ''}</span>
-                  </div>
-
                   {/* Timetable content */}
                   <div style={{ width: '120%' }}>
                     {/* Time ruler */}
@@ -789,18 +754,13 @@ export function CourseGrid() {
                               seatRatio < 0.5 ? 'bg-amber-500' :
                               'bg-emerald-500'
 
-                            const isLowSeat = course.seatLeft <= SEAT_WARN_THRESHOLD && course.seatLeft > 0
-                            const isBlink = blinkingCourses.has(courseId)
-
                             return (
                               <div
                                 key={courseId}
                                 className={cn(
                                   "absolute px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all duration-200",
                                   "hover:shadow-md hover:scale-[1.02] hover:z-20",
-                                  statusColor,
-                                  isLowSeat && 'seat-warning',
-                                  isBlink && !isLowSeat && 'seat-changed'
+                                  statusColor
                                 )}
                                 style={{
                                   left: `${leftPercent}%`,
@@ -823,7 +783,7 @@ export function CourseGrid() {
                                       <AnimatedNumber value={course.seatLeft} />
                                     </span>
                                   </div>
-                                  <div className="text-xs text-gray-500 truncate">
+                                  <div className="text-[10px] text-gray-500 truncate leading-tight">
                                     {formatTime(course.startTime)} - {formatTime(course.endTime)}
                                   </div>
                                 </div>

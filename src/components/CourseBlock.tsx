@@ -78,8 +78,6 @@ function timeToMinutes(time: string): number {
   return h * 60 + (m || 0)
 }
 
-const SEAT_WARN_THRESHOLD = 5
-
 export function CourseBlock({
   course,
   startMin,
@@ -92,23 +90,9 @@ export function CourseBlock({
   onClick,
 }: CourseBlockProps) {
   const [isGlowing, setIsGlowing] = useState(false)
-  const [seatChanged, setSeatChanged] = useState(false)
   const [notificationQueue, setNotificationQueue] = useState<StackNotification[]>([])
   const [activeNotification, setActiveNotification] = useState<StackNotification | null>(null)
   const prevStackedSeatsRef = useRef<Map<string, number>>(new Map())
-  const prevSeatLeftRef = useRef<number>(course.seatLeft)
-
-  // Detect seatLeft change for blink
-  useEffect(() => {
-    if (prevSeatLeftRef.current !== course.seatLeft) {
-      prevSeatLeftRef.current = course.seatLeft
-      setSeatChanged(true)
-      const t = setTimeout(() => setSeatChanged(false), 1000)
-      return () => clearTimeout(t)
-    }
-  }, [course.seatLeft])
-
-  const isLowSeat = course.seatLeft <= SEAT_WARN_THRESHOLD && course.seatLeft > 0
   
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -221,9 +205,7 @@ export function CourseBlock({
         stackTotal > 1 && 'hover:animate-shake',
         getBlockBgColor(course.seatLeft, course.seatLimit),
         isGlowing && `shadow-${GLOW_SIZE}`,
-        isGlowing && getGlowColor(course.seatLeft, course.seatLimit),
-        isLowSeat && 'seat-warning',
-        seatChanged && !isLowSeat && 'seat-changed'
+        isGlowing && getGlowColor(course.seatLeft, course.seatLimit)
       )}
       style={{
         left: `${left}%`,

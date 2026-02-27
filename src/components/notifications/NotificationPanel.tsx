@@ -283,7 +283,7 @@ export function NotificationPanel({ isOpen, onClose, onViewCourse }: Notificatio
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {filteredNotifications.map(notification => (
+              {filteredNotifications.map((notification, idx) => (
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
@@ -291,6 +291,7 @@ export function NotificationPanel({ isOpen, onClose, onViewCourse }: Notificatio
                   onAddSection={handleAddSection}
                   onViewCourse={handleViewCourse}
                   onClear={handleClearNotification}
+                  index={idx}
                 />
               ))}
             </div>
