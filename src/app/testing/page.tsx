@@ -15,6 +15,8 @@ import {
   GraduationCap,
   Search,
 } from 'lucide-react';
+import { majorElectiveCodesSet, majorElectiveLookup } from '@/app/course-cross-checker/data/majorElectives';
+import type { MajorElectiveCourse } from '@/app/course-cross-checker/data/majorElectives';
 
 // --- Types ---
 interface CurriculumCourse {
@@ -51,6 +53,14 @@ interface ParsedTranscript {
     totalCredits: number;
   };
   semesters: TranscriptSemester[];
+}
+
+// Matched major elective from transcript, with semester info for chronological ordering
+interface MajorElectiveMatch {
+  courseCode: string;
+  courseName: string;
+  semesterIndex: number; // index in transcript semesters (for chronological order)
+  semesterLabel: string;
 }
 
 // --- Vincent Mary School of Engineering Majors ---
@@ -475,6 +485,7 @@ export default function TestingPage() {
   // Crosscheck state
   const [completedCourses, setCompletedCourses] = useState<Set<string>>(new Set());
   const [parsedTranscript, setParsedTranscript] = useState<ParsedTranscript | null>(null);
+  const [matchedElectives, setMatchedElectives] = useState<MajorElectiveMatch[]>([]);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -496,6 +507,7 @@ export default function TestingPage() {
       setStudyPlanLoaded(false);
       setParsedTranscript(null);
       setCompletedCourses(new Set());
+      setMatchedElectives([]);
       return;
     }
 
@@ -504,6 +516,7 @@ export default function TestingPage() {
 
     setCsvLoaded(false);
     setStudyPlanLoaded(false);
+    setMatchedElectives([]);
     setError(null);
 
     fetch(`/${major.csvFile}`)
@@ -554,6 +567,7 @@ export default function TestingPage() {
     setError(null);
     setParsedTranscript(null);
     setCompletedCourses(new Set());
+    setMatchedElectives([]);
 
     try {
       const text = await extractPdfText(pdfFile);
@@ -576,6 +590,29 @@ export default function TestingPage() {
       setCompletedCourses(completed);
       console.log('[Crosscheck] Completed courses:', [...completed]);
 
+      // Detect major elective matches (CE and EE use shared dataset)
+      const hasMajorElectives = selectedMajor === 'computer-engineering' || selectedMajor === 'electrical-engineering';
+      if (hasMajorElectives) {
+        const electives: MajorElectiveMatch[] = [];
+        parsed.semesters.forEach((sem, semIdx) => {
+          sem.courses.forEach(c => {
+            if (majorElectiveCodesSet.has(c.code)) {
+              const info = majorElectiveLookup.get(c.code);
+              electives.push({
+                courseCode: c.code,
+                courseName: info?.courseName || c.code,
+                semesterIndex: semIdx,
+                semesterLabel: sem.semesterLabel,
+              });
+            }
+          });
+        });
+        // Sort chronologically (by semester order in transcript)
+        electives.sort((a, b) => a.semesterIndex - b.semesterIndex);
+        setMatchedElectives(electives);
+        console.log('[Crosscheck] Major elective matches:', electives.map(e => e.courseCode));
+      }
+
       setStudyPlanLoaded(true);
     } catch (err) {
       setError(`PDF parsing failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -586,6 +623,19 @@ export default function TestingPage() {
 
   // Compute layout positions
   const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
+
+  // Pre-compute: map node index → matched major elective (fill slots chronologically)
+  const electiveSlotMap = new Map<number, MajorElectiveMatch>();
+  if (layout && matchedElectives.length > 0) {
+    let electiveIdx = 0;
+    layout.nodes.forEach((node, nodeIdx) => {
+      const isMajorElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Major Elective');
+      if (isMajorElectiveSlot && electiveIdx < matchedElectives.length) {
+        electiveSlotMap.set(nodeIdx, matchedElectives[electiveIdx]);
+        electiveIdx++;
+      }
+    });
+  }
 
   // Loading states
   if (authLoading || !isAuthenticated) {
@@ -600,7 +650,7 @@ export default function TestingPage() {
   return (
     <>
       <DustBackgroundLight particleMultiplier={0.5} />
-      <GCPLayout activeFeature="Testing" projectName="Testing">
+      <GCPLayout activeFeature="Course Cross Checker" projectName="Course Cross Checker">
         {/* Locked centered container — expanded to use viewport width, with edge padding */}
         <div className="max-w-[1920px] mx-auto px-4 py-4">
           {/* Page Header */}
@@ -637,6 +687,7 @@ export default function TestingPage() {
                         setStudyPlanLoaded(false);
                         setParsedTranscript(null);
                         setCompletedCourses(new Set());
+                        setMatchedElectives([]);
                       }}
                       className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-2 pr-8 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     >
@@ -781,20 +832,24 @@ export default function TestingPage() {
                     {layout.nodes.map((node, idx) => {
                       const style = getCourseStyle(node.course);
                       const isCompleted = !!(node.course.courseCode && completedCourses.has(node.course.courseCode));
+                      const filledElective = electiveSlotMap.get(idx);
+                      const isMajorElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Major Elective');
+                      const isFilledElective = isMajorElectiveSlot && !!filledElective;
+
                       return (
                         <div
                           key={`node-${node.course.courseCode || node.course.courseTitle}-${idx}`}
-                          data-course={node.course.courseCode || undefined}
+                          data-course={node.course.courseCode || filledElective?.courseCode || undefined}
                           style={{
                             position: 'absolute',
                             left: node.x,
                             top: node.y,
                             width: COLUMN_WIDTH,
                             height: CARD_HEIGHT,
-                            background: isCompleted ? '#F0FDF4' : style.bg,
-                            border: isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
+                            background: isFilledElective ? '#EFF6FF' : isCompleted ? '#F0FDF4' : style.bg,
+                            border: isFilledElective ? '2px solid #3B82F6' : isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
                             borderRadius: '6px',
-                            boxShadow: isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
+                            boxShadow: isFilledElective ? '0 2px 8px rgba(59,130,246,0.15)' : isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
                             display: 'grid',
                             placeItems: 'center',
                             margin: 0,
@@ -803,14 +858,14 @@ export default function TestingPage() {
                           }}
                         >
                           {/* Completed checkmark */}
-                          {isCompleted && (
+                          {(isCompleted || isFilledElective) && (
                             <span
                               style={{
                                 position: 'absolute',
                                 top: 4,
                                 right: 6,
                                 fontSize: 14,
-                                color: '#16a34a',
+                                color: isFilledElective ? '#3B82F6' : '#16a34a',
                                 fontWeight: 'bold',
                                 lineHeight: 1,
                                 pointerEvents: 'none',
@@ -830,16 +885,30 @@ export default function TestingPage() {
                             </div>
                           )}
 
-                          <div className="text-center">
-                            <div className="font-semibold text-sm leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text }}>
-                              {node.course.courseCode || node.course.courseTitle}
-                            </div>
-                            {node.course.courseCode && (
-                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text, opacity: 0.75 }}>
-                                {node.course.courseTitle}
+                          {isFilledElective ? (
+                            <div className="text-center px-2">
+                              <div className="font-bold text-sm leading-tight break-words" style={{ color: '#1E40AF' }}>
+                                {filledElective.courseCode}
                               </div>
-                            )}
-                          </div>
+                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: '#1E40AF', opacity: 0.8 }}>
+                                {filledElective.courseName}
+                              </div>
+                              <div className="text-[9px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>
+                                Major Elective
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="font-semibold text-sm leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text }}>
+                                {node.course.courseCode || node.course.courseTitle}
+                              </div>
+                              {node.course.courseCode && (
+                                <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text, opacity: 0.75 }}>
+                                  {node.course.courseTitle}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -883,6 +952,24 @@ export default function TestingPage() {
                         / {curriculum.filter(c => c.courseCode).length} courses matched
                       </div>
                     </div>
+
+                    {/* Major Electives Summary */}
+                    {matchedElectives.length > 0 && (
+                      <div className="border-t border-gray-100 pt-2">
+                        <div className="text-[10px] font-medium text-gray-400 uppercase mb-1">Major Electives</div>
+                        <div className="text-xs text-gray-700 mb-1">
+                          <span className="font-bold text-blue-700">{matchedElectives.length}</span>{' '}
+                          / {curriculum.filter(c => !c.courseCode && c.courseTitle.includes('Major Elective')).length} slots filled
+                        </div>
+                        <div className="space-y-0.5">
+                          {matchedElectives.map((e, i) => (
+                            <div key={i} className="text-[11px] text-blue-700 font-mono leading-relaxed">
+                              {e.courseCode}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Semester Breakdown */}
                     <div className="border-t border-gray-100 pt-2 space-y-2">

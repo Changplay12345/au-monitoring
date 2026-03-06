@@ -10,7 +10,6 @@ import {
   TimeConflictResult,
   InstructorSchedule 
 } from '@/types/notification'
-import { getNewlyFullCourses } from './useCourses'
 
 const TEST_TABLE = 'data_vme_test'
 const PLANNER_TABLE = 'data_vme_planner'
@@ -270,13 +269,32 @@ export function useNotifications(): UseNotificationsReturn {
       // Filter out cleared notifications
       const mappedNotifications = allMappedNotifications.filter(n => !clearedSet.has(n.id))
       
-      const unreadNotifs = mappedNotifications.filter(n => n.status === 'unread')
-      console.log(`[Notifications] Setting ${mappedNotifications.length} notifications (${unreadNotifs.length} unread)`)
-      if (unreadNotifs.length > 0) {
-        console.log(`[Notifications] Unread notifications:`, unreadNotifs.map(n => n.id))
-      }
-      
-      setNotifications(mappedNotifications)
+      // MERGE with existing notifications instead of replacing
+      // This preserves notifications added via the custom event
+      setNotifications(prev => {
+        const existingIds = new Set(prev.map(n => n.id))
+        const fetchedIds = new Set(mappedNotifications.map(n => n.id))
+        
+        // Start with fetched notifications
+        const merged = mappedNotifications.map(fetched => {
+          // If this notification exists in current state and is unread, preserve that status
+          const existing = prev.find(p => p.id === fetched.id)
+          if (existing && existing.status === 'unread') {
+            return { ...fetched, status: 'unread' as NotificationStatus, createdAt: existing.createdAt }
+          }
+          return fetched
+        })
+        
+        // Add any notifications from prev that aren't in fetched (shouldn't happen normally, but safety)
+        prev.forEach(p => {
+          if (!fetchedIds.has(p.id) && p.status === 'unread') {
+            // This was added via custom event but not yet in DB - keep it
+            merged.unshift(p)
+          }
+        })
+        
+        return merged
+      })
       setHasFetchedOnce(true)
     } catch (err: any) {
       console.error('Error fetching notifications:', err)
@@ -528,37 +546,61 @@ export function useNotifications(): UseNotificationsReturn {
     return notifications.filter(n => n.status === 'unread').length
   }, [notifications])
 
-  // Poll for newly-full courses from useCourses queue
+  // Listen for COURSE_FULL_EVENT from useCourses (realtime seat transition detection)
   useEffect(() => {
-    const pollInterval = setInterval(() => {
-      const newlyFull = getNewlyFullCourses()
-      if (newlyFull.length > 0) {
-        console.log(`[Notifications] 🔔 Found ${newlyFull.length} newly-full courses:`, newlyFull.map(c => c.courseId))
+    const handleCourseFull = (event: Event) => {
+      const { courseId, courseCode, section, courseData } = (event as CustomEvent).detail
+      console.log(`[Notifications] 🔔 Received COURSE_FULL_EVENT for ${courseId} - updating immediately`)
+      
+      // Mark this course as unread (remove from read set)
+      const readSet = getReadNotifications()
+      readSet.delete(courseId)
+      updateReadNotifications(readSet)
+      
+      // Remove from notified set so it shows as new
+      notifiedCourseIds.delete(courseId)
+      
+      // IMMEDIATELY update notifications state (no fetch delay)
+      setNotifications(prev => {
+        // Check if notification already exists
+        const existingIndex = prev.findIndex(n => n.id === courseId)
         
-        const readSet = getReadNotifications()
-        const resolvedSet = getResolvedNotifications()
-        const clearedSet = getClearedNotifications()
+        const newNotification: Notification = {
+          id: courseId,
+          type: 'COURSE_FULL' as NotificationType,
+          title: `${courseCode} Section ${section} is now full`,
+          message: courseData ? `Instructor: ${courseData['Instructor'] || 'TBA'}` : 'No seats available',
+          status: 'unread' as NotificationStatus,
+          createdAt: new Date().toISOString(),
+          courseCode: courseCode,
+          section: section,
+          instructorName: courseData?.['Instructor'] || 'TBA',
+          seatLimit: courseData?.['Seat Limit'] || 0,
+          seatUsed: courseData?.['Seat Used'] || 0,
+        }
         
-        newlyFull.forEach(({ courseId }) => {
-          // Mark as unread - remove from ALL sets so it shows as new
-          readSet.delete(courseId)
-          resolvedSet.delete(courseId)
-          clearedSet.delete(courseId)
-          notifiedCourseIds.delete(courseId)
-          console.log(`[Notifications] Cleared all flags for ${courseId}`)
-        })
-        
-        updateReadNotifications(readSet)
-        updateResolvedNotifications(resolvedSet)
-        updateClearedNotifications(clearedSet)
-        
-        // Force refetch to show notifications
-        fetchNotificationsRef.current(true)
-      }
-    }, 500) // Poll every 500ms
+        if (existingIndex >= 0) {
+          // Update existing notification to unread
+          const updated = [...prev]
+          updated[existingIndex] = { ...updated[existingIndex], status: 'unread', createdAt: new Date().toISOString() }
+          return updated
+        } else {
+          // Add new notification at the beginning
+          return [newNotification, ...prev]
+        }
+      })
+    }
     
-    return () => clearInterval(pollInterval)
-  }, [getReadNotifications, getResolvedNotifications, getClearedNotifications, updateReadNotifications, updateResolvedNotifications, updateClearedNotifications])
+    if (typeof window !== 'undefined') {
+      window.addEventListener('course-became-full', handleCourseFull)
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('course-became-full', handleCourseFull)
+      }
+    }
+  }, [getReadNotifications, updateReadNotifications])
 
   // Initial fetch and real-time subscription to data_vme_test
   useEffect(() => {
