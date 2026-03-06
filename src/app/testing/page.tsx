@@ -15,7 +15,8 @@ import {
   GraduationCap,
   Search,
 } from 'lucide-react';
-import { majorElectiveCodesSet, majorElectiveLookup } from '@/app/course-cross-checker/data/majorElectives';
+import { electiveCodesSet as ceElectiveCodesSet, electiveLookup as ceElectiveLookup } from '@/app/course-cross-checker/data/majors/ce';
+import { electiveCodesSet as eeElectiveCodesSet, electiveLookup as eeElectiveLookup } from '@/app/course-cross-checker/data/majors/ee';
 import type { MajorElectiveCourse } from '@/app/course-cross-checker/data/majorElectives';
 
 // --- Types ---
@@ -590,14 +591,20 @@ export default function TestingPage() {
       setCompletedCourses(completed);
       console.log('[Crosscheck] Completed courses:', [...completed]);
 
-      // Detect major elective matches (CE and EE use shared dataset)
-      const hasMajorElectives = selectedMajor === 'computer-engineering' || selectedMajor === 'electrical-engineering';
-      if (hasMajorElectives) {
+      // Detect major elective matches — load correct config per major
+      const electiveCodesSet = selectedMajor === 'computer-engineering' ? ceElectiveCodesSet
+        : selectedMajor === 'electrical-engineering' ? eeElectiveCodesSet
+        : null;
+      const electiveLookup = selectedMajor === 'computer-engineering' ? ceElectiveLookup
+        : selectedMajor === 'electrical-engineering' ? eeElectiveLookup
+        : null;
+
+      if (electiveCodesSet && electiveLookup) {
         const electives: MajorElectiveMatch[] = [];
         parsed.semesters.forEach((sem, semIdx) => {
           sem.courses.forEach(c => {
-            if (majorElectiveCodesSet.has(c.code)) {
-              const info = majorElectiveLookup.get(c.code);
+            if (electiveCodesSet.has(c.code)) {
+              const info = electiveLookup.get(c.code);
               electives.push({
                 courseCode: c.code,
                 courseName: info?.courseName || c.code,

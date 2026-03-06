@@ -64,9 +64,6 @@ export const sharedMajorElectives: MajorElectiveCourse[] = [
   { courseCode: 'BEN4213', courseName: 'Digital Entrepreneurship', credits: 3, category: 'BEN' },
   { courseCode: 'BEN4315', courseName: 'Family Business Management', credits: 3, category: 'BEN' },
 
-  // BG Courses
-  { courseCode: 'BG2212', courseName: 'Applied Statistics', credits: 3, category: 'BG' },
-
   // CDI Courses
   { courseCode: 'CDI3211', courseName: 'Game Design', credits: 3, category: 'CDI' },
 
