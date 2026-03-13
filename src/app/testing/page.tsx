@@ -18,6 +18,8 @@ import {
 import { electiveCodesSet as ceElectiveCodesSet, electiveLookup as ceElectiveLookup } from '@/app/course-cross-checker/data/majors/ce';
 import { electiveCodesSet as eeElectiveCodesSet, electiveLookup as eeElectiveLookup } from '@/app/course-cross-checker/data/majors/ee';
 import type { MajorElectiveCourse } from '@/app/course-cross-checker/data/majorElectives';
+import { gePoolCodesSet, gePoolLookup, humanityCodesSet, socialScienceCodesSet, scienceMathCodesSet } from '@/app/course-cross-checker/data/gePool';
+import type { GEPoolCourse } from '@/app/course-cross-checker/data/gePool';
 
 // --- Types ---
 interface CurriculumCourse {
@@ -61,6 +63,15 @@ interface MajorElectiveMatch {
   courseCode: string;
   courseName: string;
   semesterIndex: number; // index in transcript semesters (for chronological order)
+  semesterLabel: string;
+}
+
+// Matched GE Pool course from transcript
+interface GEPoolMatch {
+  courseCode: string;
+  courseName: string;
+  category: 'Humanity' | 'Social Science' | 'Science and Math';
+  semesterIndex: number;
   semesterLabel: string;
 }
 
@@ -487,6 +498,7 @@ export default function TestingPage() {
   const [completedCourses, setCompletedCourses] = useState<Set<string>>(new Set());
   const [parsedTranscript, setParsedTranscript] = useState<ParsedTranscript | null>(null);
   const [matchedElectives, setMatchedElectives] = useState<MajorElectiveMatch[]>([]);
+  const [matchedGEPool, setMatchedGEPool] = useState<GEPoolMatch[]>([]);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -509,6 +521,7 @@ export default function TestingPage() {
       setParsedTranscript(null);
       setCompletedCourses(new Set());
       setMatchedElectives([]);
+      setMatchedGEPool([]);
       return;
     }
 
@@ -518,6 +531,7 @@ export default function TestingPage() {
     setCsvLoaded(false);
     setStudyPlanLoaded(false);
     setMatchedElectives([]);
+    setMatchedGEPool([]);
     setError(null);
 
     fetch(`/${major.csvFile}`)
@@ -569,6 +583,7 @@ export default function TestingPage() {
     setParsedTranscript(null);
     setCompletedCourses(new Set());
     setMatchedElectives([]);
+    setMatchedGEPool([]);
 
     try {
       const text = await extractPdfText(pdfFile);
@@ -620,6 +635,29 @@ export default function TestingPage() {
         console.log('[Crosscheck] Major elective matches:', electives.map(e => e.courseCode));
       }
 
+      // Detect GE Pool matches (Humanity, Social Science, Science/Math)
+      const gePoolMatches: GEPoolMatch[] = [];
+      parsed.semesters.forEach((sem, semIdx) => {
+        sem.courses.forEach(c => {
+          if (gePoolCodesSet.has(c.code)) {
+            const info = gePoolLookup.get(c.code);
+            if (info && (info.category === 'Humanity' || info.category === 'Social Science' || info.category === 'Science and Math')) {
+              gePoolMatches.push({
+                courseCode: c.code,
+                courseName: info.courseName,
+                category: info.category,
+                semesterIndex: semIdx,
+                semesterLabel: sem.semesterLabel,
+              });
+            }
+          }
+        });
+      });
+      // Sort chronologically
+      gePoolMatches.sort((a, b) => a.semesterIndex - b.semesterIndex);
+      setMatchedGEPool(gePoolMatches);
+      console.log('[Crosscheck] GE Pool matches:', gePoolMatches.map(g => `${g.courseCode} (${g.category})`));
+
       setStudyPlanLoaded(true);
     } catch (err) {
       setError(`PDF parsing failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -640,6 +678,34 @@ export default function TestingPage() {
       if (isMajorElectiveSlot && electiveIdx < matchedElectives.length) {
         electiveSlotMap.set(nodeIdx, matchedElectives[electiveIdx]);
         electiveIdx++;
+      }
+    });
+  }
+
+  // Pre-compute: map node index → matched GE Pool course (fill slots chronologically by category)
+  const gePoolSlotMap = new Map<number, GEPoolMatch>();
+  if (layout && matchedGEPool.length > 0) {
+    // Separate by category
+    const humanityMatches = matchedGEPool.filter(g => g.category === 'Humanity');
+    const socialScienceMatches = matchedGEPool.filter(g => g.category === 'Social Science');
+    const scienceMathMatches = matchedGEPool.filter(g => g.category === 'Science and Math');
+    
+    let humanityIdx = 0, socialIdx = 0, scienceIdx = 0;
+    
+    layout.nodes.forEach((node, nodeIdx) => {
+      if (!node.course.courseCode && node.course.courseTitle.includes('GE Pool')) {
+        const title = node.course.courseTitle;
+        
+        if (title.includes('Humanity') && humanityIdx < humanityMatches.length) {
+          gePoolSlotMap.set(nodeIdx, humanityMatches[humanityIdx]);
+          humanityIdx++;
+        } else if (title.includes('Social Science') && socialIdx < socialScienceMatches.length) {
+          gePoolSlotMap.set(nodeIdx, socialScienceMatches[socialIdx]);
+          socialIdx++;
+        } else if (title.includes('Science and Math') && scienceIdx < scienceMathMatches.length) {
+          gePoolSlotMap.set(nodeIdx, scienceMathMatches[scienceIdx]);
+          scienceIdx++;
+        }
       }
     });
   }
@@ -695,6 +761,7 @@ export default function TestingPage() {
                         setParsedTranscript(null);
                         setCompletedCourses(new Set());
                         setMatchedElectives([]);
+                        setMatchedGEPool([]);
                       }}
                       className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-2 pr-8 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     >
@@ -840,23 +907,26 @@ export default function TestingPage() {
                       const style = getCourseStyle(node.course);
                       const isCompleted = !!(node.course.courseCode && completedCourses.has(node.course.courseCode));
                       const filledElective = electiveSlotMap.get(idx);
+                      const filledGEPool = gePoolSlotMap.get(idx);
                       const isMajorElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Major Elective');
+                      const isGEPoolSlot = !node.course.courseCode && node.course.courseTitle.includes('GE Pool');
                       const isFilledElective = isMajorElectiveSlot && !!filledElective;
+                      const isFilledGEPool = isGEPoolSlot && !!filledGEPool;
 
                       return (
                         <div
                           key={`node-${node.course.courseCode || node.course.courseTitle}-${idx}`}
-                          data-course={node.course.courseCode || filledElective?.courseCode || undefined}
+                          data-course={node.course.courseCode || filledElective?.courseCode || filledGEPool?.courseCode || undefined}
                           style={{
                             position: 'absolute',
                             left: node.x,
                             top: node.y,
                             width: COLUMN_WIDTH,
                             height: CARD_HEIGHT,
-                            background: isFilledElective ? '#EFF6FF' : isCompleted ? '#F0FDF4' : style.bg,
-                            border: isFilledElective ? '2px solid #3B82F6' : isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
+                            background: isFilledGEPool ? '#F5F3FF' : isFilledElective ? '#EFF6FF' : isCompleted ? '#F0FDF4' : style.bg,
+                            border: isFilledGEPool ? '2px solid #8B5CF6' : isFilledElective ? '2px solid #3B82F6' : isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
                             borderRadius: '6px',
-                            boxShadow: isFilledElective ? '0 2px 8px rgba(59,130,246,0.15)' : isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
+                            boxShadow: isFilledGEPool ? '0 2px 8px rgba(139,92,246,0.15)' : isFilledElective ? '0 2px 8px rgba(59,130,246,0.15)' : isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
                             display: 'grid',
                             placeItems: 'center',
                             margin: 0,
@@ -865,14 +935,14 @@ export default function TestingPage() {
                           }}
                         >
                           {/* Completed checkmark */}
-                          {(isCompleted || isFilledElective) && (
+                          {(isCompleted || isFilledElective || isFilledGEPool) && (
                             <span
                               style={{
                                 position: 'absolute',
                                 top: 4,
                                 right: 6,
                                 fontSize: 14,
-                                color: isFilledElective ? '#3B82F6' : '#16a34a',
+                                color: isFilledGEPool ? '#8B5CF6' : isFilledElective ? '#3B82F6' : '#16a34a',
                                 fontWeight: 'bold',
                                 lineHeight: 1,
                                 pointerEvents: 'none',
@@ -892,7 +962,19 @@ export default function TestingPage() {
                             </div>
                           )}
 
-                          {isFilledElective ? (
+                          {isFilledGEPool ? (
+                            <div className="text-center px-2">
+                              <div className="font-bold text-sm leading-tight break-words" style={{ color: '#6B21A8' }}>
+                                {filledGEPool.courseCode}
+                              </div>
+                              <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: '#6B21A8', opacity: 0.8 }}>
+                                {filledGEPool.courseName}
+                              </div>
+                              <div className="text-[9px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>
+                                {filledGEPool.category}
+                              </div>
+                            </div>
+                          ) : isFilledElective ? (
                             <div className="text-center px-2">
                               <div className="font-bold text-sm leading-tight break-words" style={{ color: '#1E40AF' }}>
                                 {filledElective.courseCode}
