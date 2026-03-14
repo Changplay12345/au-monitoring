@@ -262,6 +262,9 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
   if (!course.courseCode && course.courseTitle.includes('Free Elective')) {
     return { bg: '#ECFDF5', border: '#6EE7B7', text: '#065F46' };
   }
+  if (course.courseCode === 'GE Pool') {
+    return { bg: '#F5F3FF', border: '#C4B5FD', text: '#6B21A8' };
+  }
   if (course.orFlag === 'or') {
     return { bg: '#FFFBEB', border: '#FCD34D', text: '#92400E' };
   }
@@ -636,10 +639,14 @@ export default function TestingPage() {
       }
 
       // Detect GE Pool matches (Humanity, Social Science, Science/Math)
+      // Only match courses NOT already in curriculum as specific entries
+      const specificCurriculumCodes = new Set(
+        curriculum.filter(c => c.courseCode && c.courseCode !== 'GE Pool').map(c => c.courseCode)
+      );
       const gePoolMatches: GEPoolMatch[] = [];
       parsed.semesters.forEach((sem, semIdx) => {
         sem.courses.forEach(c => {
-          if (gePoolCodesSet.has(c.code)) {
+          if (gePoolCodesSet.has(c.code) && !specificCurriculumCodes.has(c.code)) {
             const info = gePoolLookup.get(c.code);
             if (info && (info.category === 'Humanity' || info.category === 'Social Science' || info.category === 'Science and Math')) {
               gePoolMatches.push({
@@ -693,7 +700,8 @@ export default function TestingPage() {
     let humanityIdx = 0, socialIdx = 0, scienceIdx = 0;
     
     layout.nodes.forEach((node, nodeIdx) => {
-      if (!node.course.courseCode && node.course.courseTitle.includes('GE Pool')) {
+      // GE Pool slots have courseCode='GE Pool' and courseTitle='Humanity Course'/'Social Science Course'/'Science and Math Course'
+      if (node.course.courseCode === 'GE Pool') {
         const title = node.course.courseTitle;
         
         if (title.includes('Humanity') && humanityIdx < humanityMatches.length) {
@@ -702,7 +710,7 @@ export default function TestingPage() {
         } else if (title.includes('Social Science') && socialIdx < socialScienceMatches.length) {
           gePoolSlotMap.set(nodeIdx, socialScienceMatches[socialIdx]);
           socialIdx++;
-        } else if (title.includes('Science and Math') && scienceIdx < scienceMathMatches.length) {
+        } else if (title.includes('Science') && scienceIdx < scienceMathMatches.length) {
           gePoolSlotMap.set(nodeIdx, scienceMathMatches[scienceIdx]);
           scienceIdx++;
         }
@@ -905,11 +913,11 @@ export default function TestingPage() {
                     {/* Course Nodes — with crosscheck completion state */}
                     {layout.nodes.map((node, idx) => {
                       const style = getCourseStyle(node.course);
-                      const isCompleted = !!(node.course.courseCode && completedCourses.has(node.course.courseCode));
+                      const isGEPoolSlot = node.course.courseCode === 'GE Pool';
+                      const isCompleted = !!(node.course.courseCode && node.course.courseCode !== 'GE Pool' && completedCourses.has(node.course.courseCode));
                       const filledElective = electiveSlotMap.get(idx);
                       const filledGEPool = gePoolSlotMap.get(idx);
                       const isMajorElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Major Elective');
-                      const isGEPoolSlot = !node.course.courseCode && node.course.courseTitle.includes('GE Pool');
                       const isFilledElective = isMajorElectiveSlot && !!filledElective;
                       const isFilledGEPool = isGEPoolSlot && !!filledGEPool;
 
@@ -971,7 +979,7 @@ export default function TestingPage() {
                                 {filledGEPool.courseName}
                               </div>
                               <div className="text-[9px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>
-                                {filledGEPool.category}
+                                GE Pool
                               </div>
                             </div>
                           ) : isFilledElective ? (
@@ -989,9 +997,9 @@ export default function TestingPage() {
                           ) : (
                             <div className="text-center">
                               <div className="font-semibold text-sm leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text }}>
-                                {node.course.courseCode || node.course.courseTitle}
+                                {isGEPoolSlot ? node.course.courseTitle : (node.course.courseCode || node.course.courseTitle)}
                               </div>
-                              {node.course.courseCode && (
+                              {node.course.courseCode && !isGEPoolSlot && (
                                 <div className="text-xs mt-0.5 leading-tight break-words" style={{ color: isCompleted ? '#166534' : style.text, opacity: 0.75 }}>
                                   {node.course.courseTitle}
                                 </div>
