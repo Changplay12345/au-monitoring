@@ -1059,12 +1059,8 @@ export default function TestingPage() {
       }
     }, 1000);
 
-    // Open AU Spark in new tab — extension will handle scraping
-    if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
-      (window as any).__auSparkExtension.openAuSpark();
-    } else {
-      window.open('https://auspark.au.edu', '_blank');
-    }
+    // Open AU Spark grade page directly in new tab
+    window.open('https://auspark.au.edu/grade', '_blank');
   }, [selectedMajor, csvLoaded, curriculum, processSparkTranscript]);
 
   // Listen for AU Spark extension events via multiple channels

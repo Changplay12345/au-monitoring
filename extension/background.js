@@ -133,7 +133,7 @@ async function focusCrossCheckerTab() {
 
 // Handle extension icon click - open AU Spark
 chrome.action.onClicked.addListener((tab) => {
-  chrome.tabs.create({ url: 'http://auspark.au.edu' });
+  chrome.tabs.create({ url: 'https://auspark.au.edu/grade' });
 });
 
 // Allow external connections from our web app
@@ -145,7 +145,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   }
 
   if (message.type === 'OPEN_AU_SPARK') {
-    chrome.tabs.create({ url: 'http://auspark.au.edu' });
+    chrome.tabs.create({ url: 'https://auspark.au.edu/grade' });
     sendResponse({ success: true });
   }
 
