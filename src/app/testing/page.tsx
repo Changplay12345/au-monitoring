@@ -506,9 +506,7 @@ export default function TestingPage() {
   const [matchedGEPool, setMatchedGEPool] = useState<GEPoolMatch[]>([]);
 
   // AU Spark import state
-  const [showSparkModal, setShowSparkModal] = useState(false);
-  const [sparkUsername, setSparkUsername] = useState('');
-  const [sparkPassword, setSparkPassword] = useState('');
+  const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isSparkImporting, setIsSparkImporting] = useState(false);
 
   // Refs
@@ -683,8 +681,8 @@ export default function TestingPage() {
     }
   }, [selectedMajor, csvLoaded, curriculum, pdfFile, runCrosscheckPipeline]);
 
-  // Handle AU Spark import — scrape transcript via server route
-  const handleSparkImport = useCallback(async () => {
+  // Handle AU Spark import — open AU Spark in new tab (extension will handle scraping)
+  const handleSparkImport = useCallback(() => {
     if (!selectedMajor) {
       setError('Please select a major first.');
       return;
@@ -693,47 +691,47 @@ export default function TestingPage() {
       setError('Curriculum data not loaded yet.');
       return;
     }
-    if (!sparkUsername || !sparkPassword) {
-      setError('Please enter your AU Spark credentials.');
-      return;
-    }
 
     setIsSparkImporting(true);
-    setShowSparkModal(false);
-    setIsProcessing(true);
     setError(null);
-    setParsedTranscript(null);
-    setCompletedCourses(new Set());
-    setMatchedElectives([]);
-    setMatchedGEPool([]);
 
-    try {
-      const res = await fetch('/api/scrape-au-spark', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: sparkUsername, password: sparkPassword }),
-      });
-
-      const data = await res.json();
-
-      if (data.status !== 'success' || !data.transcript) {
-        setError(data.reason || 'Unable to import from AU Spark. Please try again.');
-        return;
-      }
-
-      console.log('[AU Spark] Received transcript:', JSON.stringify(data.transcript, null, 2));
-      runCrosscheckPipeline(data.transcript);
-    } catch (err) {
-      setError(`Unable to import from AU Spark. Please try again.`);
-      console.error('[AU Spark] Import error:', err);
-    } finally {
-      setIsProcessing(false);
-      setIsSparkImporting(false);
-      // Clear credentials from memory immediately
-      setSparkUsername('');
-      setSparkPassword('');
+    // Check if extension is installed and use it
+    if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
+      (window as any).__auSparkExtension.openAuSpark();
+    } else {
+      // Fallback: open AU Spark directly
+      window.open('http://auspark.au.edu', '_blank');
     }
-  }, [selectedMajor, csvLoaded, curriculum, sparkUsername, sparkPassword, runCrosscheckPipeline]);
+  }, [selectedMajor, csvLoaded, curriculum]);
+
+  // Listen for AU Spark extension events
+  useEffect(() => {
+    // Check if extension is installed
+    const checkExtension = () => {
+      if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
+        setExtensionInstalled(true);
+      }
+    };
+    
+    checkExtension();
+    window.addEventListener('au-spark-extension-ready', checkExtension);
+
+    // Listen for transcript data from extension
+    const handleTranscript = (event: CustomEvent) => {
+      console.log('[AU Spark] Received transcript from extension:', event.detail);
+      if (event.detail && selectedMajor && csvLoaded) {
+        setIsSparkImporting(false);
+        runCrosscheckPipeline(event.detail);
+      }
+    };
+
+    window.addEventListener('au-spark-transcript', handleTranscript as EventListener);
+
+    return () => {
+      window.removeEventListener('au-spark-extension-ready', checkExtension);
+      window.removeEventListener('au-spark-transcript', handleTranscript as EventListener);
+    };
+  }, [selectedMajor, csvLoaded, runCrosscheckPipeline]);
 
   // Compute layout positions
   const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
@@ -888,27 +886,21 @@ export default function TestingPage() {
 
                 {/* Import From AU Spark */}
                 <button
-                  onClick={() => {
-                    if (!selectedMajor) {
-                      setError('Please select a major first.');
-                      return;
-                    }
-                    if (!csvLoaded || curriculum.length === 0) {
-                      setError('Curriculum data not loaded yet.');
-                      return;
-                    }
-                    setError(null);
-                    setShowSparkModal(true);
-                  }}
+                  onClick={handleSparkImport}
                   disabled={isProcessing || isSparkImporting}
                   className="w-full flex items-center justify-center gap-1.5 bg-amber-500 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isSparkImporting ? (
-                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Importing...</>
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Waiting for import...</>
                   ) : (
                     <><Zap className="w-3.5 h-3.5" /> Import From AU Spark</>
                   )}
                 </button>
+                {!extensionInstalled && (
+                  <p className="text-[10px] text-amber-600 text-center">
+                    Install the browser extension for auto-import
+                  </p>
+                )}
 
                 {/* Error */}
                 {error && (
@@ -1190,75 +1182,6 @@ export default function TestingPage() {
         </div>
       </GCPLayout>
 
-      {/* AU Spark Credential Modal */}
-      {showSparkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-amber-600" />
-                <h3 className="text-sm font-semibold text-gray-800">Import From AU Spark</h3>
-              </div>
-              <button
-                onClick={() => { setShowSparkModal(false); setSparkUsername(''); setSparkPassword(''); }}
-                className="p-1 rounded-lg hover:bg-gray-200/60 transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Enter your AU Spark credentials. They are used only for this request and are never stored.
-              </p>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Username / Student ID</label>
-                <input
-                  type="text"
-                  value={sparkUsername}
-                  onChange={e => setSparkUsername(e.target.value)}
-                  placeholder="e.g. 6422000"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
-                <input
-                  type="password"
-                  value={sparkPassword}
-                  onChange={e => setSparkPassword(e.target.value)}
-                  placeholder="••••••••"
-                  onKeyDown={e => { if (e.key === 'Enter' && sparkUsername && sparkPassword) handleSparkImport(); }}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2 bg-gray-50/50">
-              <button
-                onClick={() => { setShowSparkModal(false); setSparkUsername(''); setSparkPassword(''); }}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 rounded-lg hover:bg-gray-200/60 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSparkImport}
-                disabled={!sparkUsername || !sparkPassword}
-                className="px-4 py-1.5 text-xs font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Import
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

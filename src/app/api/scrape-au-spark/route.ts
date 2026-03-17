@@ -22,11 +22,11 @@ interface ParsedTranscript {
 }
 
 // ─── Configuration ─────────────────────────────────────────────────────────
-// Adjust these URLs to match AU Spark's actual endpoints
+// AU Spark URLs (Assumption University)
 const AU_SPARK_LOGIN_URL =
-  process.env.AU_SPARK_LOGIN_URL || 'https://auspark.au.edu/login';
+  process.env.AU_SPARK_LOGIN_URL || 'http://auspark.au.edu';
 const AU_SPARK_TRANSCRIPT_URL =
-  process.env.AU_SPARK_TRANSCRIPT_URL || 'https://auspark.au.edu/student/grade';
+  process.env.AU_SPARK_TRANSCRIPT_URL || 'http://auspark.au.edu/student/grade';
 
 const SCRAPE_TIMEOUT_MS = 15_000; // 15 second overall timeout
 const IS_VERCEL = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;

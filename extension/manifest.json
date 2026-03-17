@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "AU Spark Transcript Importer",
+  "version": "1.0.0",
+  "description": "Import transcript data from AU Spark to Course Cross Checker",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://auspark.au.edu/*",
+    "https://auspark.au.edu/*",
+    "http://localhost:*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://auspark.au.edu/*", "https://auspark.au.edu/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost:*/*"],
+      "js": ["inject.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:*/*",
+      "https://*.vercel.app/*"
+    ]
+  }
+}
