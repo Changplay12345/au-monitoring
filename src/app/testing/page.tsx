@@ -1000,7 +1000,24 @@ export default function TestingPage() {
     }
   }, [selectedMajor, csvLoaded, curriculum, pdfFile, runCrosscheckPipeline]);
 
-  // Handle AU Spark import — extension-based with timeout protection
+  // Ref for localStorage polling interval
+  const sparkPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Process transcript data from any source (extension event or localStorage)
+  const processSparkTranscript = useCallback((data: ParsedTranscript) => {
+    console.log('[AU Spark] Processing transcript:', data);
+    if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
+    sparkTimeoutRef.current = null;
+    if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
+    sparkPollingRef.current = null;
+    localStorage.removeItem('sparkTranscriptData');
+    setIsSparkImporting(false);
+    if (selectedMajor && csvLoaded) {
+      runCrosscheckPipeline(data);
+    }
+  }, [selectedMajor, csvLoaded, runCrosscheckPipeline]);
+
+  // Handle AU Spark import — extension-based with localStorage polling fallback
   const handleSparkImport = useCallback(() => {
     if (!selectedMajor) {
       setError('Please select a major first.');
@@ -1011,17 +1028,34 @@ export default function TestingPage() {
       return;
     }
 
+    // Clear any previous data
+    localStorage.removeItem('sparkTranscriptData');
+
     setIsSparkImporting(true);
     setError(null);
 
-    // Set timeout to auto-cancel after 60s to prevent infinite loading
+    // Set timeout to auto-cancel after 90s to prevent infinite loading
     if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
     sparkTimeoutRef.current = setTimeout(() => {
-      if (isSparkImporting) {
-        setIsSparkImporting(false);
-        setError('AU Spark import timed out. Please try again or use PDF upload.');
+      setIsSparkImporting(false);
+      if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
+      sparkPollingRef.current = null;
+      setError('AU Spark import timed out. Please try again or use PDF upload.');
+    }, 90000);
+
+    // Start polling localStorage every 1s (works cross-origin on production)
+    if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
+    sparkPollingRef.current = setInterval(() => {
+      const raw = localStorage.getItem('sparkTranscriptData');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as ParsedTranscript;
+          processSparkTranscript(parsed);
+        } catch (e) {
+          console.error('[AU Spark] Failed to parse localStorage data:', e);
+        }
       }
-    }, 60000);
+    }, 1000);
 
     // Open AU Spark in new tab — extension will handle scraping
     if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
@@ -1029,9 +1063,9 @@ export default function TestingPage() {
     } else {
       window.open('https://auspark.au.edu', '_blank');
     }
-  }, [selectedMajor, csvLoaded, curriculum, isSparkImporting]);
+  }, [selectedMajor, csvLoaded, curriculum, processSparkTranscript]);
 
-  // Listen for AU Spark extension events
+  // Listen for AU Spark extension events via multiple channels
   useEffect(() => {
     // Check if extension is installed
     const checkExtension = () => {
@@ -1043,25 +1077,46 @@ export default function TestingPage() {
     checkExtension();
     window.addEventListener('au-spark-extension-ready', checkExtension);
 
-    // Listen for transcript data from extension
+    // Listen for transcript data from extension (custom event - works locally)
     const handleTranscript = (event: CustomEvent) => {
-      console.log('[AU Spark] Received transcript from extension:', event.detail);
-      if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
-      sparkTimeoutRef.current = null;
-      setIsSparkImporting(false);
-      if (event.detail && selectedMajor && csvLoaded) {
-        runCrosscheckPipeline(event.detail);
+      console.log('[AU Spark] Received transcript via custom event:', event.detail);
+      if (event.detail) {
+        processSparkTranscript(event.detail);
       }
     };
-
     window.addEventListener('au-spark-transcript', handleTranscript as EventListener);
 
+    // Listen for postMessage from extension (cross-origin compatible)
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'au-spark-transcript' && event.data?.payload) {
+        console.log('[AU Spark] Received transcript via postMessage:', event.data.payload);
+        processSparkTranscript(event.data.payload);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    // BroadcastChannel for same-origin cross-tab communication
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('au-spark-channel');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'transcript' && event.data?.payload) {
+          console.log('[AU Spark] Received transcript via BroadcastChannel:', event.data.payload);
+          processSparkTranscript(event.data.payload);
+        }
+      };
+    }
+
+    // Cleanup
     return () => {
       window.removeEventListener('au-spark-extension-ready', checkExtension);
       window.removeEventListener('au-spark-transcript', handleTranscript as EventListener);
+      window.removeEventListener('message', handleMessage);
+      if (channel) channel.close();
       if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
+      if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
     };
-  }, [selectedMajor, csvLoaded, runCrosscheckPipeline]);
+  }, [processSparkTranscript]);
 
   // Compute layout positions
   const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
