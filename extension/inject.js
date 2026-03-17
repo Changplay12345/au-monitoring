@@ -20,12 +20,8 @@
       window.dispatchEvent(event);
       console.log('[AU Spark Extension] CustomEvent dispatched: au-spark-transcript');
       
-      // Also store in localStorage as backup
-      localStorage.setItem('au-spark-transcript', JSON.stringify({
-        timestamp: Date.now(),
-        transcript: message.transcript,
-        source: 'au-spark-extension'
-      }));
+      // Also store in localStorage as backup (key the site polls for)
+      localStorage.setItem('sparkTranscriptData', JSON.stringify(message.transcript));
 
       console.log('[AU Spark Extension] Transcript data saved to localStorage');
       sendResponse({ success: true });
@@ -42,22 +38,21 @@
   });
 
   // Check if there's pending transcript data in localStorage
-  const stored = localStorage.getItem('au-spark-transcript');
+  const stored = localStorage.getItem('sparkTranscriptData');
   if (stored) {
     try {
       const data = JSON.parse(stored);
-      // Only use if less than 5 minutes old
-      if (Date.now() - data.timestamp < 5 * 60 * 1000) {
-        console.log('[AU Spark Extension] Found recent transcript in localStorage');
-        
-        // Dispatch after a short delay to let React mount
-        setTimeout(() => {
-          const event = new CustomEvent('au-spark-transcript', {
-            detail: data.transcript
-          });
-          window.dispatchEvent(event);
-        }, 1000);
-      }
+      console.log('[AU Spark Extension] Found transcript in localStorage');
+      
+      // Dispatch after a short delay to let React mount
+      setTimeout(() => {
+        const event = new CustomEvent('au-spark-transcript', {
+          detail: data
+        });
+        window.dispatchEvent(event);
+        // Clear after dispatching
+        localStorage.removeItem('sparkTranscriptData');
+      }, 1000);
     } catch (e) {
       console.error('[AU Spark Extension] Error parsing stored transcript:', e);
     }

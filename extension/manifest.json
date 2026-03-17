@@ -11,7 +11,8 @@
   "host_permissions": [
     "http://auspark.au.edu/*",
     "https://auspark.au.edu/*",
-    "http://localhost:*/*"
+    "http://localhost:*/*",
+    "https://*.vercel.app/*"
   ],
   "content_scripts": [
     {
@@ -20,7 +21,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["http://localhost:*/*"],
+      "matches": ["http://localhost:*/*", "https://*.vercel.app/*"],
       "js": ["inject.js"],
       "run_at": "document_idle"
     }

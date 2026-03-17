@@ -91,12 +91,8 @@ async function injectTranscriptIntoCrossChecker(transcript) {
                 detail: transcriptData
               });
               window.dispatchEvent(event);
-              // Also save to localStorage
-              localStorage.setItem('au-spark-transcript', JSON.stringify({
-                timestamp: Date.now(),
-                transcript: transcriptData,
-                source: 'au-spark-extension'
-              }));
+              // Also save to localStorage with the key the site polls for
+              localStorage.setItem('sparkTranscriptData', JSON.stringify(transcriptData));
               console.log('[AU Spark Extension] Transcript injected successfully');
             },
             args: [transcript]
