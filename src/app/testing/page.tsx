@@ -105,14 +105,33 @@ interface UnplacedCourse {
 
 // --- Vincent Mary School of Engineering Majors ---
 const MAJORS = [
-  { value: 'science', label: 'Computer Science', csvFile: 'science.csv' },
-  { value: 'computer-engineering', label: 'Computer Engineering', csvFile: 'ece.csv' },
-  { value: 'electrical-engineering', label: 'Electrical & Electronic Engineering', csvFile: 'electrical-engineering.csv' },
-  { value: 'mechanical-engineering', label: 'Mechanical Engineering', csvFile: 'mechanical-engineering.csv' },
-  { value: 'mechatronics', label: 'Mechatronics Engineering', csvFile: 'mechatronics.csv' },
-  { value: 'telecommunications', label: 'Telecommunications Engineering', csvFile: 'telecommunications.csv' },
-  { value: 'civil-engineering', label: 'Civil Engineering', csvFile: 'civil-engineering.csv' },
+  { value: 'computer-engineering', label: 'Computer Engineering', degreeName: 'Computer Engineering' },
+  { value: 'electrical-engineering', label: 'Electrical & Electronic Engineering', degreeName: 'Electrical & Electronic Engineering' },
+  { value: 'mechatronics', label: 'Mechatronics Engineering', degreeName: 'Mechatronics Engineering' },
 ];
+
+// --- Curriculum versions per major ---
+interface CurriculumVersion {
+  value: string;
+  label: string;
+  csvFile: string;
+  totalCredits: number;
+}
+
+const CURRICULA: Record<string, CurriculumVersion[]> = {
+  'computer-engineering': [
+    { value: '651', label: '651-xxxx', csvFile: 'ece 651.csv', totalCredits: 132 },
+    { value: '651-69x', label: '651-xxxx to 69x-xxxx', csvFile: 'ece 65x-69x.csv', totalCredits: 132 },
+  ],
+  'electrical-engineering': [
+    { value: '651', label: '651-xxxx', csvFile: 'ece 651.csv', totalCredits: 132 },
+    { value: '651-69x', label: '651-xxxx to 69x-xxxx', csvFile: 'ece 65x-69x.csv', totalCredits: 132 },
+  ],
+  'mechatronics': [
+    { value: '651', label: '651-xxxx', csvFile: 'ece 651.csv', totalCredits: 132 },
+    { value: '651-69x', label: '651-xxxx to 69x-xxxx', csvFile: 'ece 65x-69x.csv', totalCredits: 132 },
+  ],
+};
 
 // --- CSV Parsing ---
 function parseCurriculumCSV(csvText: string): CurriculumCourse[] {
@@ -515,6 +534,7 @@ export default function TestingPage() {
 
   // Left panel state
   const [selectedMajor, setSelectedMajor] = useState('');
+  const [selectedCurriculum, setSelectedCurriculum] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -583,9 +603,9 @@ export default function TestingPage() {
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
-  // Load CSV when major changes
+  // Load CSV when major or curriculum changes
   useEffect(() => {
-    if (!selectedMajor) {
+    if (!selectedMajor || !selectedCurriculum) {
       setCurriculum([]);
       setSemesterGroups([]);
       setCsvLoaded(false);
@@ -600,18 +620,22 @@ export default function TestingPage() {
       return;
     }
 
-    const major = MAJORS.find(m => m.value === selectedMajor);
-    if (!major) return;
+    const versions = CURRICULA[selectedMajor];
+    const currVer = versions?.find(v => v.value === selectedCurriculum);
+    if (!currVer) return;
 
     setCsvLoaded(false);
     setStudyPlanLoaded(false);
     setMatchedElectives([]);
     setMatchedGEPool([]);
+    setMatchedGELanguage([]);
+    setMatchedFreeElectives([]);
+    setUnplacedCourses([]);
     setError(null);
 
-    fetch(`/${major.csvFile}`)
+    fetch(`/${encodeURIComponent(currVer.csvFile)}`)
       .then(res => {
-        if (!res.ok) throw new Error(`CSV file not found: ${major.csvFile}`);
+        if (!res.ok) throw new Error(`CSV file not found: ${currVer.csvFile}`);
         return res.text();
       })
       .then(text => {
@@ -624,7 +648,7 @@ export default function TestingPage() {
         setError(`Failed to load curriculum: ${err.message}`);
         setCsvLoaded(false);
       });
-  }, [selectedMajor]);
+  }, [selectedMajor, selectedCurriculum]);
 
   // Handle file upload
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -649,7 +673,22 @@ export default function TestingPage() {
     setCompletedCourses(completed);
     console.log('[Crosscheck] Completed courses:', [...completed]);
 
-    // Detect major elective matches — load correct config per major
+    // Build set of specific curriculum course codes (core courses with explicit codes, excluding GE Pool)
+    const specificCurriculumCodes = new Set(
+      curriculum.filter(c => c.courseCode && c.courseCode !== 'GE Pool').map(c => c.courseCode)
+    );
+
+    // Track which transcript courses have been assigned — prevents duplicates
+    const assignedCodes = new Set<string>();
+
+    // 1) Core courses — mark all completed core courses as assigned FIRST
+    completed.forEach(code => {
+      if (specificCurriculumCodes.has(code)) {
+        assignedCodes.add(code);
+      }
+    });
+
+    // 2) Detect major elective matches — EXCLUDE courses already placed in core
     const electiveCodesSet = selectedMajor === 'computer-engineering' ? ceElectiveCodesSet
       : selectedMajor === 'electrical-engineering' ? eeElectiveCodesSet
       : null;
@@ -661,6 +700,7 @@ export default function TestingPage() {
     if (electiveCodesSet && electiveLookup) {
       parsed.semesters.forEach((sem, semIdx) => {
         sem.courses.forEach(c => {
+          if (assignedCodes.has(c.code)) return; // already used as core — skip
           if (electiveCodesSet.has(c.code)) {
             const info = electiveLookup.get(c.code);
             electives.push({
@@ -677,22 +717,7 @@ export default function TestingPage() {
       console.log('[Crosscheck] Major elective matches:', electives.map(e => e.courseCode));
     }
 
-    // Build set of specific curriculum course codes (non-GE-Pool, non-elective, non-free-elective)
-    const specificCurriculumCodes = new Set(
-      curriculum.filter(c => c.courseCode && c.courseCode !== 'GE Pool').map(c => c.courseCode)
-    );
-
-    // Track which transcript courses have been assigned
-    const assignedCodes = new Set<string>();
-
-    // 1) Core courses — already handled by completedCourses + specificCurriculumCodes
-    completed.forEach(code => {
-      if (specificCurriculumCodes.has(code)) {
-        assignedCodes.add(code);
-      }
-    });
-
-    // 2) Major Elective matches — already computed above
+    // Mark electives as assigned
     electives.forEach(e => assignedCodes.add(e.courseCode));
 
     // 3) Normal GE Pool matches (Humanity, Social Science, Science/Math)
@@ -1014,12 +1039,16 @@ export default function TestingPage() {
                       value={selectedMajor}
                       onChange={e => {
                         setSelectedMajor(e.target.value);
+                        setSelectedCurriculum('');
                         setError(null);
                         setStudyPlanLoaded(false);
                         setParsedTranscript(null);
                         setCompletedCourses(new Set());
                         setMatchedElectives([]);
                         setMatchedGEPool([]);
+                        setMatchedGELanguage([]);
+                        setMatchedFreeElectives([]);
+                        setUnplacedCourses([]);
                       }}
                       className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-2 pr-8 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                     >
@@ -1031,6 +1060,36 @@ export default function TestingPage() {
                     <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
+
+                {/* Curriculum Dropdown */}
+                {selectedMajor && CURRICULA[selectedMajor] && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Curriculum</label>
+                    <div className="relative">
+                      <select
+                        value={selectedCurriculum}
+                        onChange={e => {
+                          setSelectedCurriculum(e.target.value);
+                          setStudyPlanLoaded(false);
+                          setParsedTranscript(null);
+                          setCompletedCourses(new Set());
+                          setMatchedElectives([]);
+                          setMatchedGEPool([]);
+                          setMatchedGELanguage([]);
+                          setMatchedFreeElectives([]);
+                          setUnplacedCourses([]);
+                        }}
+                        className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-2 pr-8 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                      >
+                        <option value="">-- Choose --</option>
+                        {CURRICULA[selectedMajor].map(v => (
+                          <option key={v.value} value={v.value}>{v.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
 
                 {/* File Upload */}
                 <div>
@@ -1057,7 +1116,7 @@ export default function TestingPage() {
                 {/* Crosscheck Button */}
                 <button
                   onClick={handleCrosscheck}
-                  disabled={isProcessing || !selectedMajor || !pdfFile}
+                  disabled={isProcessing || !selectedMajor || !selectedCurriculum || !pdfFile}
                   className="w-full flex items-center justify-center gap-1.5 bg-red-600 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isProcessing ? (
@@ -1135,19 +1194,30 @@ export default function TestingPage() {
             <div className="w-full lg:flex-1 min-w-0">
               <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                 {/* Panel Header */}
-                <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-red-500" />
-                    Study Plan
+                <div className="px-5 py-3 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-red-500" />
+                      Study Plan
+                    </h2>
                     {studyPlanLoaded && (
-                      <span className="text-xs font-normal text-gray-400 ml-1">
-                        — {MAJORS.find(m => m.value === selectedMajor)?.label}
-                      </span>
+                      <span className="text-xs text-gray-400">{curriculum.length} courses · drag to pan · scroll to zoom</span>
                     )}
-                  </h2>
-                  {studyPlanLoaded && (
-                    <span className="text-xs text-gray-400">{curriculum.length} courses · drag to pan · scroll to zoom</span>
-                  )}
+                  </div>
+                  {studyPlanLoaded && selectedMajor && selectedCurriculum && (() => {
+                    const major = MAJORS.find(m => m.value === selectedMajor);
+                    const currVer = CURRICULA[selectedMajor]?.find(v => v.value === selectedCurriculum);
+                    return major && currVer ? (
+                      <div className="text-center mt-2">
+                        <div className="text-base font-bold text-gray-800">
+                          Bachelor of {major.degreeName}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-0.5">
+                          Curriculum for {currVer.label} Students ({currVer.totalCredits} Credits)
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 {!studyPlanLoaded ? (
@@ -1448,16 +1518,22 @@ export default function TestingPage() {
 
                     {/* Semester Breakdown */}
                     <div className="border-t border-gray-100 pt-2 space-y-2">
-                      {parsedTranscript.semesters.map((sem, i) => (
+                      {parsedTranscript.semesters.map((sem, i) => {
+                        const semTotalCredits = sem.courses.reduce((sum, c) => sum + c.credits, 0);
+                        return (
                         <div key={i}>
-                          <div className="text-[10px] font-bold text-gray-500 mb-0.5">{sem.semesterLabel}</div>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-bold text-gray-700">{sem.semesterLabel}</span>
+                            <span className="text-xs font-bold text-gray-700">{semTotalCredits} CR.</span>
+                          </div>
                           {sem.courses.map((c, j) => (
                             <div key={j} className="text-[11px] text-gray-600 font-mono leading-relaxed">
                               {c.code} {c.credits} CR.
                             </div>
                           ))}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
