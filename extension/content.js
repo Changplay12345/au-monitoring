@@ -24,11 +24,27 @@
     const idMatch = text.match(/\b(\d{7})\b/);
     if (!idMatch) return null;
 
-    // Extract name (uppercase line)
-    const nameMatch = text.match(/\n([A-Z][A-Z\s]{3,}[A-Z])\n/);
-
-    // Extract major
-    const majorMatch = text.match(/([A-Z][A-Z\s]*ENGINEERING)(?:\s|$)/);
+    // Extract name - look for pattern after "AU SPARK" header
+    // Format: AU SPARK\nFIRSTNAME\nLASTNAME\nDEPARTMENT\nFACULTY
+    let name = 'Unknown';
+    let major = 'Unknown';
+    
+    const headerMatch = text.match(/AU SPARK\s*\n([A-Z]+)\s*\n([A-Z]+)\s*\n([A-Z\s]+(?:ENGINEERING|SCIENCE|ARTS|BUSINESS))\s*\n([A-Z]+)/i);
+    if (headerMatch) {
+      name = `${headerMatch[1]} ${headerMatch[2]}`; // FIRSTNAME LASTNAME
+      major = headerMatch[3].trim(); // e.g., "ELECTRICAL AND COMPUTER ENGINEERING"
+    } else {
+      // Fallback: try to find name pattern
+      const nameMatch = text.match(/\n([A-Z]{2,})\s*\n([A-Z]{2,})\s*\n/);
+      if (nameMatch) {
+        name = `${nameMatch[1]} ${nameMatch[2]}`;
+      }
+      // Fallback for major
+      const majorMatch = text.match(/([A-Z][A-Z\s]*ENGINEERING)(?:\s|$)/);
+      if (majorMatch) {
+        major = majorMatch[1].trim();
+      }
+    }
 
     // Split by semester labels
     const semesterLabels = text.match(/SEMESTER\s+\d\/\d{4}/g) || [];
@@ -59,9 +75,9 @@
 
     return {
       student: {
-        name: nameMatch ? nameMatch[1].trim() : 'Unknown',
+        name: name,
         id: idMatch[1],
-        major: majorMatch ? majorMatch[1].trim() : 'Unknown',
+        major: major,
         totalCredits,
       },
       semesters,
