@@ -571,10 +571,10 @@ export default function TestingPage() {
   const [activeSwapNode, setActiveSwapNode] = useState<number | null>(null);
   const [swapDropdownPos, setSwapDropdownPos] = useState<{ x: number; y: number } | null>(null);
 
-  // AU Spark import state (client-assisted localStorage bridge)
+  // AU Spark import state (extension-based with timeout protection)
+  const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isSparkImporting, setIsSparkImporting] = useState(false);
-  const [showSparkOverlay, setShowSparkOverlay] = useState(false);
-  const sparkPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sparkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // PWA install prompt state
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -1000,7 +1000,7 @@ export default function TestingPage() {
     }
   }, [selectedMajor, csvLoaded, curriculum, pdfFile, runCrosscheckPipeline]);
 
-  // Handle AU Spark import — client-assisted localStorage bridge flow
+  // Handle AU Spark import — extension-based with timeout protection
   const handleSparkImport = useCallback(() => {
     if (!selectedMajor) {
       setError('Please select a major first.');
@@ -1011,52 +1011,57 @@ export default function TestingPage() {
       return;
     }
 
-    // Clear any previous data
-    localStorage.removeItem('sparkTranscriptData');
-
     setIsSparkImporting(true);
-    setShowSparkOverlay(true);
     setError(null);
 
-    // Open AU Spark grade page directly in new tab
-    window.open('https://auspark.au.edu/grade', '_blank');
-
-    // Start polling localStorage every 1s for transcript data
-    if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
-    sparkPollingRef.current = setInterval(() => {
-      const raw = localStorage.getItem('sparkTranscriptData');
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as ParsedTranscript;
-          console.log('[AU Spark] Received transcript via localStorage bridge:', parsed);
-          localStorage.removeItem('sparkTranscriptData');
-          if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
-          sparkPollingRef.current = null;
-          setIsSparkImporting(false);
-          setShowSparkOverlay(false);
-          runCrosscheckPipeline(parsed);
-        } catch (e) {
-          console.error('[AU Spark] Failed to parse transcript data:', e);
-        }
+    // Set timeout to auto-cancel after 60s to prevent infinite loading
+    if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
+    sparkTimeoutRef.current = setTimeout(() => {
+      if (isSparkImporting) {
+        setIsSparkImporting(false);
+        setError('AU Spark import timed out. Please try again or use PDF upload.');
       }
-    }, 1000);
-  }, [selectedMajor, csvLoaded, curriculum, runCrosscheckPipeline]);
+    }, 60000);
 
-  // Cancel AU Spark import polling
-  const cancelSparkImport = useCallback(() => {
-    if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
-    sparkPollingRef.current = null;
-    localStorage.removeItem('sparkTranscriptData');
-    setIsSparkImporting(false);
-    setShowSparkOverlay(false);
-  }, []);
+    // Open AU Spark in new tab — extension will handle scraping
+    if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
+      (window as any).__auSparkExtension.openAuSpark();
+    } else {
+      window.open('https://auspark.au.edu', '_blank');
+    }
+  }, [selectedMajor, csvLoaded, curriculum, isSparkImporting]);
 
-  // Cleanup polling on unmount
+  // Listen for AU Spark extension events
   useEffect(() => {
-    return () => {
-      if (sparkPollingRef.current) clearInterval(sparkPollingRef.current);
+    // Check if extension is installed
+    const checkExtension = () => {
+      if (typeof window !== 'undefined' && (window as any).__auSparkExtension) {
+        setExtensionInstalled(true);
+      }
     };
-  }, []);
+    
+    checkExtension();
+    window.addEventListener('au-spark-extension-ready', checkExtension);
+
+    // Listen for transcript data from extension
+    const handleTranscript = (event: CustomEvent) => {
+      console.log('[AU Spark] Received transcript from extension:', event.detail);
+      if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
+      sparkTimeoutRef.current = null;
+      setIsSparkImporting(false);
+      if (event.detail && selectedMajor && csvLoaded) {
+        runCrosscheckPipeline(event.detail);
+      }
+    };
+
+    window.addEventListener('au-spark-transcript', handleTranscript as EventListener);
+
+    return () => {
+      window.removeEventListener('au-spark-extension-ready', checkExtension);
+      window.removeEventListener('au-spark-transcript', handleTranscript as EventListener);
+      if (sparkTimeoutRef.current) clearTimeout(sparkTimeoutRef.current);
+    };
+  }, [selectedMajor, csvLoaded, runCrosscheckPipeline]);
 
   // Compute layout positions
   const layout = studyPlanLoaded ? computeLayout(semesterGroups) : null;
@@ -1423,13 +1428,10 @@ export default function TestingPage() {
                     <><Zap className="w-3.5 h-3.5" /> Import From AU Spark</>
                   )}
                 </button>
-                {isSparkImporting && (
-                  <button
-                    onClick={cancelSparkImport}
-                    className="w-full text-[10px] text-gray-500 hover:text-red-500 transition-colors text-center py-1"
-                  >
-                    Cancel import
-                  </button>
+                {!extensionInstalled && (
+                  <p className="text-[10px] text-amber-600 text-center">
+                    Install the browser extension for auto-import
+                  </p>
                 )}
 
                 {/* Error */}
@@ -1716,54 +1718,6 @@ export default function TestingPage() {
                 </div>
               );
             })()}
-
-            {/* AU Spark Instruction Overlay */}
-            {showSparkOverlay && (
-              <div className="fixed inset-0 z-[9990] bg-black/40 flex items-center justify-center">
-                <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4" style={{ animation: 'fadeIn 200ms ease-out' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Zap className="w-5 h-5 text-amber-500" />
-                    <h3 className="text-base font-bold text-gray-800">Import from AU Spark</h3>
-                  </div>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p className="font-medium text-gray-700">Follow these steps in the AU Spark tab:</p>
-                    <ol className="list-decimal list-inside space-y-2">
-                      <li>Log in to AU Spark (if not already)</li>
-                      <li>Navigate to the <strong>Grade</strong> page</li>
-                      <li>Open DevTools console (<code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">F12</code> → Console)</li>
-                      <li>Paste the bookmarklet script below and press Enter</li>
-                    </ol>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase">Bookmarklet Script</span>
-                        <button
-                          onClick={() => {
-                            const script = `(function(){try{const rows=document.querySelectorAll('table tbody tr');if(!rows.length){alert('No grade table found');return}const semesters=[];let currentSem=null;rows.forEach(r=>{const cells=r.querySelectorAll('td');if(cells.length>=1){const semMatch=cells[0]?.textContent?.match(/SEMESTER\\s+\\d\\/\\d{4}/i);if(semMatch){if(currentSem)semesters.push(currentSem);currentSem={semesterLabel:semMatch[0],courses:[]};return}if(currentSem&&cells.length>=3){const code=cells[0]?.textContent?.trim();const credits=parseInt(cells[2]?.textContent?.trim()||'0');if(code&&/^[A-Z]{2,4}\\d{4}$/.test(code)&&credits>0){currentSem.courses.push({code,credits})}}}});if(currentSem&&currentSem.courses.length)semesters.push(currentSem);const nameEl=document.querySelector('.student-name,h2,h3');const idEl=document.querySelector('.student-id,[class*=id]');const name=nameEl?.textContent?.trim()||'Unknown';const id=(document.body.innerText.match(/\\b(\\d{7})\\b/)||[])[1]||'Unknown';const major=(document.body.innerText.match(/([A-Z][A-Z\\s]*ENGINEERING)/)||[])[1]||'Unknown';const totalCredits=semesters.reduce((s,sem)=>s+sem.courses.reduce((a,c)=>a+c.credits,0),0);const data={student:{name,id,major,totalCredits},semesters};if(window.opener){window.opener.localStorage.setItem('sparkTranscriptData',JSON.stringify(data));alert('Transcript sent! This tab will close.');window.close()}else{localStorage.setItem('sparkTranscriptData',JSON.stringify(data));alert('Transcript saved! Return to Course Cross Checker tab.')}}catch(e){alert('Error: '+e.message)}})();`;
-                            navigator.clipboard.writeText(script);
-                          }}
-                          className="text-[10px] text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Copy Script
-                        </button>
-                      </div>
-                      <code className="text-[10px] text-gray-500 break-all leading-relaxed block max-h-16 overflow-y-auto">
-                        {`(function(){/* Extract transcript from AU Spark */...})();`}
-                      </code>
-                    </div>
-                    <div className="flex items-center gap-2 pt-2">
-                      <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
-                      <span className="text-xs text-amber-600 font-medium">Waiting for transcript data...</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={cancelSparkImport}
-                    className="mt-4 w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* ===== RIGHT PANEL (15%) — Analytics ===== */}
             <div className="w-full lg:w-[14%] lg:min-w-[170px] lg:max-w-[220px] flex-shrink-0">
