@@ -58,6 +58,39 @@
     }
   }
 
+  // Poll chrome.storage for transcript data (most reliable cross-tab method)
+  let storagePollingInterval = setInterval(() => {
+    chrome.storage.local.get(['au-spark-transcript'], (result) => {
+      if (result['au-spark-transcript']) {
+        const data = result['au-spark-transcript'];
+        // Check if data is recent (within last 60 seconds)
+        if (data.timestamp && Date.now() - data.timestamp < 60000) {
+          console.log('[AU Spark Extension] Found transcript in chrome.storage:', data.transcript);
+          
+          // Dispatch custom event
+          const event = new CustomEvent('au-spark-transcript', {
+            detail: data.transcript
+          });
+          window.dispatchEvent(event);
+          
+          // Also save to localStorage as backup
+          localStorage.setItem('sparkTranscriptData', JSON.stringify(data.transcript));
+          
+          // Clear the storage after processing
+          chrome.storage.local.remove(['au-spark-transcript']);
+          
+          // Stop polling
+          clearInterval(storagePollingInterval);
+        }
+      }
+    });
+  }, 1000); // Poll every 1 second
+
+  // Stop polling after 2 minutes to avoid memory leak
+  setTimeout(() => {
+    clearInterval(storagePollingInterval);
+  }, 120000);
+
   // Expose function for the page to check extension status
   window.__auSparkExtension = {
     isInstalled: true,
