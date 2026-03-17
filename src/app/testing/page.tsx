@@ -16,6 +16,7 @@ import {
   Search,
   Zap,
   X,
+  Download,
 } from 'lucide-react';
 import { electiveCodesSet as ceElectiveCodesSet, electiveLookup as ceElectiveLookup } from '@/app/course-cross-checker/data/majors/ce';
 import { electiveCodesSet as eeElectiveCodesSet, electiveLookup as eeElectiveLookup } from '@/app/course-cross-checker/data/majors/ee';
@@ -574,6 +575,7 @@ export default function TestingPage() {
   // AU Spark import state (extension-based with timeout protection)
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isSparkImporting, setIsSparkImporting] = useState(false);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
   const sparkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // PWA install prompt state
@@ -1484,9 +1486,12 @@ export default function TestingPage() {
                   )}
                 </button>
                 {!extensionInstalled && (
-                  <p className="text-[10px] text-amber-600 text-center">
-                    Install the browser extension for auto-import
-                  </p>
+                  <button
+                    onClick={() => setShowExtensionModal(true)}
+                    className="w-full text-[10px] text-amber-600 hover:text-amber-700 hover:underline text-center transition-colors"
+                  >
+                    Install the browser extension for auto-import →
+                  </button>
                 )}
 
                 {/* Error */}
@@ -1773,6 +1778,89 @@ export default function TestingPage() {
                 </div>
               );
             })()}
+
+            {/* Extension Install Modal */}
+            {showExtensionModal && (
+              <div
+                className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4"
+                onClick={() => setShowExtensionModal(false)}
+              >
+                <div
+                  className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                  onClick={e => e.stopPropagation()}
+                  style={{ animation: 'fadeIn 200ms ease-out' }}
+                >
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Zap className="w-5 h-5" />
+                      Install AU Spark Extension
+                    </h3>
+                    <p className="text-amber-100 text-sm mt-1">One-time setup for automatic transcript import</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Download the extension</p>
+                          <a
+                            href="/extension.zip"
+                            download="au-spark-extension.zip"
+                            className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            Download Extension (.zip)
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Extract the ZIP file</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Unzip to a folder on your computer</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Open Chrome Extensions</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Go to <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono">chrome://extensions</code>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">4</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Enable Developer Mode</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Toggle the switch in the top-right corner</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">5</div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Load the extension</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Click "Load unpacked" and select the extracted folder</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400 text-center">
+                        After installation, refresh this page. The extension will auto-detect.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="px-6 pb-6">
+                    <button
+                      onClick={() => setShowExtensionModal(false)}
+                      className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ===== RIGHT PANEL (15%) — Analytics ===== */}
             <div className="w-full lg:w-[14%] lg:min-w-[170px] lg:max-w-[220px] flex-shrink-0">
