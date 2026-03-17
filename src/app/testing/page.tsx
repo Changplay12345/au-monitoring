@@ -20,7 +20,7 @@ import {
 import { electiveCodesSet as ceElectiveCodesSet, electiveLookup as ceElectiveLookup } from '@/app/course-cross-checker/data/majors/ce';
 import { electiveCodesSet as eeElectiveCodesSet, electiveLookup as eeElectiveLookup } from '@/app/course-cross-checker/data/majors/ee';
 import type { MajorElectiveCourse } from '@/app/course-cross-checker/data/majorElectives';
-import { gePoolCodesSet, gePoolLookup, humanityCodesSet, socialScienceCodesSet, scienceMathCodesSet } from '@/app/course-cross-checker/data/gePool';
+import { gePoolCodesSet, gePoolLookup, humanityCodesSet, socialScienceCodesSet, scienceMathCodesSet, languageCodesSet, bbaCodesSet } from '@/app/course-cross-checker/data/gePool';
 import type { GEPoolCourse } from '@/app/course-cross-checker/data/gePool';
 
 // --- Types ---
@@ -77,8 +77,25 @@ interface GEPoolMatch {
   semesterLabel: string;
 }
 
+// Matched GE Language Pool course from transcript
+interface GELanguageMatch {
+  courseCode: string;
+  courseName: string;
+  semesterIndex: number;
+  semesterLabel: string;
+}
+
 // Matched Free Elective course from transcript (leftover courses)
 interface FreeElectiveMatch {
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  semesterIndex: number;
+  semesterLabel: string;
+}
+
+// Unplaced course — could not fit in any slot
+interface UnplacedCourse {
   courseCode: string;
   courseName: string;
   credits: number;
@@ -513,11 +530,17 @@ export default function TestingPage() {
   const [parsedTranscript, setParsedTranscript] = useState<ParsedTranscript | null>(null);
   const [matchedElectives, setMatchedElectives] = useState<MajorElectiveMatch[]>([]);
   const [matchedGEPool, setMatchedGEPool] = useState<GEPoolMatch[]>([]);
+  const [matchedGELanguage, setMatchedGELanguage] = useState<GELanguageMatch[]>([]);
   const [matchedFreeElectives, setMatchedFreeElectives] = useState<FreeElectiveMatch[]>([]);
+  const [unplacedCourses, setUnplacedCourses] = useState<UnplacedCourse[]>([]);
 
   // AU Spark import state
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isSparkImporting, setIsSparkImporting] = useState(false);
+
+  // PWA install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -530,6 +553,36 @@ export default function TestingPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  // PWA install prompt
+  useEffect(() => {
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    if (dismissed) return;
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      setShowInstallPrompt(false);
+      localStorage.setItem('pwa-install-dismissed', 'true');
+    }
+    setDeferredPrompt(null);
+  };
+
+  const dismissInstallPrompt = () => {
+    setShowInstallPrompt(false);
+    localStorage.setItem('pwa-install-dismissed', 'true');
+  };
+
   // Load CSV when major changes
   useEffect(() => {
     if (!selectedMajor) {
@@ -541,6 +594,9 @@ export default function TestingPage() {
       setCompletedCourses(new Set());
       setMatchedElectives([]);
       setMatchedGEPool([]);
+      setMatchedGELanguage([]);
+      setMatchedFreeElectives([]);
+      setUnplacedCourses([]);
       return;
     }
 
@@ -601,8 +657,8 @@ export default function TestingPage() {
       : selectedMajor === 'electrical-engineering' ? eeElectiveLookup
       : null;
 
+    const electives: MajorElectiveMatch[] = [];
     if (electiveCodesSet && electiveLookup) {
-      const electives: MajorElectiveMatch[] = [];
       parsed.semesters.forEach((sem, semIdx) => {
         sem.courses.forEach(c => {
           if (electiveCodesSet.has(c.code)) {
@@ -621,57 +677,129 @@ export default function TestingPage() {
       console.log('[Crosscheck] Major elective matches:', electives.map(e => e.courseCode));
     }
 
-    // Detect GE Pool matches (Humanity, Social Science, Science/Math)
+    // Build set of specific curriculum course codes (non-GE-Pool, non-elective, non-free-elective)
     const specificCurriculumCodes = new Set(
       curriculum.filter(c => c.courseCode && c.courseCode !== 'GE Pool').map(c => c.courseCode)
     );
+
+    // Track which transcript courses have been assigned
+    const assignedCodes = new Set<string>();
+
+    // 1) Core courses — already handled by completedCourses + specificCurriculumCodes
+    completed.forEach(code => {
+      if (specificCurriculumCodes.has(code)) {
+        assignedCodes.add(code);
+      }
+    });
+
+    // 2) Major Elective matches — already computed above
+    electives.forEach(e => assignedCodes.add(e.courseCode));
+
+    // 3) Normal GE Pool matches (Humanity, Social Science, Science/Math)
+    //    Priority: exact GE Pool match first, BBA courses LOWEST priority
     const gePoolMatches: GEPoolMatch[] = [];
+    const gePoolBBAMatches: GEPoolMatch[] = []; // BBA fallback
     parsed.semesters.forEach((sem, semIdx) => {
       sem.courses.forEach(c => {
-        if (gePoolCodesSet.has(c.code) && !specificCurriculumCodes.has(c.code)) {
-          const info = gePoolLookup.get(c.code);
-          if (info && (info.category === 'Humanity' || info.category === 'Social Science' || info.category === 'Science and Math')) {
-            gePoolMatches.push({
-              courseCode: c.code,
-              courseName: info.courseName,
-              category: info.category,
-              semesterIndex: semIdx,
-              semesterLabel: sem.semesterLabel,
-            });
+        if (assignedCodes.has(c.code)) return;
+        if (!gePoolCodesSet.has(c.code)) return;
+        if (specificCurriculumCodes.has(c.code)) return;
+        const info = gePoolLookup.get(c.code);
+        if (!info) return;
+        if (info.category === 'Language') return; // Language goes to Language Pool
+        if (info.category === 'Humanity' || info.category === 'Social Science' || info.category === 'Science and Math') {
+          const match = {
+            courseCode: c.code,
+            courseName: info.courseName,
+            category: info.category as 'Humanity' | 'Social Science' | 'Science and Math',
+            semesterIndex: semIdx,
+            semesterLabel: sem.semesterLabel,
+          };
+          if (bbaCodesSet.has(c.code)) {
+            gePoolBBAMatches.push(match); // BBA = lowest priority
+          } else {
+            gePoolMatches.push(match);
           }
         }
       });
     });
+    // Sort: non-BBA first by semester, then append BBA
     gePoolMatches.sort((a, b) => a.semesterIndex - b.semesterIndex);
-    setMatchedGEPool(gePoolMatches);
-    console.log('[Crosscheck] GE Pool matches:', gePoolMatches.map(g => `${g.courseCode} (${g.category})`));
+    gePoolBBAMatches.sort((a, b) => a.semesterIndex - b.semesterIndex);
 
-    // Detect Free Elective matches (leftover courses not in main curriculum, major electives, or GE Pool)
-    const usedCodes = new Set([
-      ...specificCurriculumCodes, // Main courses
-      ...(electiveCodesSet || []), // Major electives
-      ...gePoolMatches.map(g => g.courseCode), // GE Pool courses used
-    ]);
-    const freeElectiveMatches: FreeElectiveMatch[] = [];
+    // Count available normal GE Pool slots
+    const normalGESlotCount = curriculum.filter(c =>
+      c.courseCode === 'GE Pool' && !c.courseTitle.includes('Language')
+    ).length;
+
+    // Fill non-BBA first, then BBA up to slot count
+    const allNormalGE = [...gePoolMatches, ...gePoolBBAMatches].slice(0, normalGESlotCount);
+    setMatchedGEPool(allNormalGE);
+    allNormalGE.forEach(g => assignedCodes.add(g.courseCode));
+    console.log('[Crosscheck] GE Pool matches:', allNormalGE.map(g => `${g.courseCode} (${g.category})`));
+
+    // 4) GE Language Pool matches
+    const geLanguageMatches: GELanguageMatch[] = [];
     parsed.semesters.forEach((sem, semIdx) => {
       sem.courses.forEach(c => {
-        if (!usedCodes.has(c.code) && !completed.has(c.code)) {
-          // This course is not a main course, not a major elective, not used as GE Pool
-          // Check if it's a valid free elective (from GE Pool list with Free Elective category, or any other course)
-          const geInfo = gePoolLookup.get(c.code);
-          freeElectiveMatches.push({
+        if (assignedCodes.has(c.code)) return;
+        if (languageCodesSet.has(c.code) && !specificCurriculumCodes.has(c.code)) {
+          const info = gePoolLookup.get(c.code);
+          geLanguageMatches.push({
             courseCode: c.code,
-            courseName: geInfo?.courseName || c.code,
-            credits: c.credits,
+            courseName: info?.courseName || c.code,
             semesterIndex: semIdx,
             semesterLabel: sem.semesterLabel,
           });
         }
       });
     });
+    const langSlotCount = curriculum.filter(c =>
+      c.courseCode === 'GE Pool' && c.courseTitle.includes('Language')
+    ).length;
+    geLanguageMatches.sort((a, b) => a.semesterIndex - b.semesterIndex);
+    const usedLangMatches = geLanguageMatches.slice(0, langSlotCount);
+    setMatchedGELanguage(usedLangMatches);
+    usedLangMatches.forEach(g => assignedCodes.add(g.courseCode));
+    console.log('[Crosscheck] GE Language matches:', usedLangMatches.map(g => g.courseCode));
+
+    // 5) Free Elective overflow — remaining unassigned courses fill Free Elective slots
+    const freeElectiveSlotCount = curriculum.filter(c =>
+      !c.courseCode && c.courseTitle.includes('Free Elective')
+    ).length;
+    const freeElectiveMatches: FreeElectiveMatch[] = [];
+    parsed.semesters.forEach((sem, semIdx) => {
+      sem.courses.forEach(c => {
+        if (assignedCodes.has(c.code)) return;
+        if (specificCurriculumCodes.has(c.code)) return; // skip core courses (already counted)
+        const geInfo = gePoolLookup.get(c.code);
+        freeElectiveMatches.push({
+          courseCode: c.code,
+          courseName: geInfo?.courseName || c.code,
+          credits: c.credits,
+          semesterIndex: semIdx,
+          semesterLabel: sem.semesterLabel,
+        });
+      });
+    });
     freeElectiveMatches.sort((a, b) => a.semesterIndex - b.semesterIndex);
-    setMatchedFreeElectives(freeElectiveMatches);
-    console.log('[Crosscheck] Free Elective matches:', freeElectiveMatches.map(f => f.courseCode));
+    const usedFreeElectives = freeElectiveMatches.slice(0, freeElectiveSlotCount);
+    setMatchedFreeElectives(usedFreeElectives);
+    usedFreeElectives.forEach(f => assignedCodes.add(f.courseCode));
+    console.log('[Crosscheck] Free Elective matches:', usedFreeElectives.map(f => f.courseCode));
+
+    // 6) Unplaced courses — overflow that couldn't fit anywhere
+    const unplaced: UnplacedCourse[] = freeElectiveMatches.slice(freeElectiveSlotCount).map(f => ({
+      courseCode: f.courseCode,
+      courseName: f.courseName,
+      credits: f.credits,
+      semesterIndex: f.semesterIndex,
+      semesterLabel: f.semesterLabel,
+    }));
+    setUnplacedCourses(unplaced);
+    if (unplaced.length > 0) {
+      console.log('[Crosscheck] Unplaced courses:', unplaced.map(u => u.courseCode));
+    }
 
     setStudyPlanLoaded(true);
   }, [selectedMajor, curriculum]);
@@ -811,6 +939,18 @@ export default function TestingPage() {
           gePoolSlotMap.set(nodeIdx, scienceMathMatches[scienceIdx]);
           scienceIdx++;
         }
+      }
+    });
+  }
+
+  // Pre-compute: map node index → matched GE Language Pool course (fill slots chronologically)
+  const geLanguageSlotMap = new Map<number, GELanguageMatch>();
+  if (layout && matchedGELanguage.length > 0) {
+    let langIdx = 0;
+    layout.nodes.forEach((node, nodeIdx) => {
+      if (node.course.courseCode === 'GE Pool' && node.course.courseTitle.includes('Language') && langIdx < matchedGELanguage.length) {
+        geLanguageSlotMap.set(nodeIdx, matchedGELanguage[langIdx]);
+        langIdx++;
       }
     });
   }
@@ -1052,11 +1192,14 @@ export default function TestingPage() {
                       const isCompleted = !!(node.course.courseCode && node.course.courseCode !== 'GE Pool' && completedCourses.has(node.course.courseCode));
                       const filledElective = electiveSlotMap.get(idx);
                       const filledGEPool = gePoolSlotMap.get(idx);
+                      const filledGELanguage = geLanguageSlotMap.get(idx);
                       const filledFreeElective = freeElectiveSlotMap.get(idx);
                       const isMajorElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Major Elective');
                       const isFreeElectiveSlot = !node.course.courseCode && node.course.courseTitle.includes('Free Elective');
+                      const isGELanguageSlot = isGEPoolSlot && node.course.courseTitle.includes('Language');
                       const isFilledElective = isMajorElectiveSlot && !!filledElective;
-                      const isFilledGEPool = isGEPoolSlot && !!filledGEPool;
+                      const isFilledGEPool = isGEPoolSlot && !isGELanguageSlot && !!filledGEPool;
+                      const isFilledGELanguage = isGELanguageSlot && !!filledGELanguage;
                       const isFilledFreeElective = isFreeElectiveSlot && !!filledFreeElective;
 
                       return (
@@ -1069,10 +1212,10 @@ export default function TestingPage() {
                             top: node.y,
                             width: COLUMN_WIDTH,
                             height: CARD_HEIGHT,
-                            background: isFilledFreeElective ? '#FFF7ED' : isFilledGEPool ? '#F5F3FF' : isFilledElective ? '#EFF6FF' : isCompleted ? '#F0FDF4' : style.bg,
-                            border: isFilledFreeElective ? '2px solid #F59E0B' : isFilledGEPool ? '2px solid #8B5CF6' : isFilledElective ? '2px solid #3B82F6' : isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
+                            background: isFilledFreeElective ? '#FFF7ED' : isFilledGELanguage ? '#F0FDFA' : isFilledGEPool ? '#F5F3FF' : isFilledElective ? '#EFF6FF' : isCompleted ? '#F0FDF4' : style.bg,
+                            border: isFilledFreeElective ? '2px solid #F59E0B' : isFilledGELanguage ? '2px solid #14B8A6' : isFilledGEPool ? '2px solid #8B5CF6' : isFilledElective ? '2px solid #3B82F6' : isCompleted ? '2px solid #16a34a' : `1px solid ${style.border}`,
                             borderRadius: '6px',
-                            boxShadow: isFilledFreeElective ? '0 2px 8px rgba(245,158,11,0.15)' : isFilledGEPool ? '0 2px 8px rgba(139,92,246,0.15)' : isFilledElective ? '0 2px 8px rgba(59,130,246,0.15)' : isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
+                            boxShadow: isFilledFreeElective ? '0 2px 8px rgba(245,158,11,0.15)' : isFilledGELanguage ? '0 2px 8px rgba(20,184,166,0.15)' : isFilledGEPool ? '0 2px 8px rgba(139,92,246,0.15)' : isFilledElective ? '0 2px 8px rgba(59,130,246,0.15)' : isCompleted ? '0 2px 8px rgba(22,163,74,0.15)' : '0 2px 8px rgba(0,0,0,0.05)',
                             display: 'grid',
                             placeItems: 'center',
                             margin: 0,
@@ -1081,14 +1224,14 @@ export default function TestingPage() {
                           }}
                         >
                           {/* Completed checkmark */}
-                          {(isCompleted || isFilledElective || isFilledGEPool || isFilledFreeElective) && (
+                          {(isCompleted || isFilledElective || isFilledGEPool || isFilledGELanguage || isFilledFreeElective) && (
                             <span
                               style={{
                                 position: 'absolute',
                                 top: 4,
                                 right: 6,
                                 fontSize: 14,
-                                color: isFilledFreeElective ? '#F59E0B' : isFilledGEPool ? '#8B5CF6' : isFilledElective ? '#3B82F6' : '#16a34a',
+                                color: isFilledFreeElective ? '#F59E0B' : isFilledGELanguage ? '#14B8A6' : isFilledGEPool ? '#8B5CF6' : isFilledElective ? '#3B82F6' : '#16a34a',
                                 fontWeight: 'bold',
                                 lineHeight: 1,
                                 pointerEvents: 'none',
@@ -1118,6 +1261,18 @@ export default function TestingPage() {
                               </div>
                               <div className="text-[10px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>
                                 Free Elective
+                              </div>
+                            </div>
+                          ) : isFilledGELanguage ? (
+                            <div className="text-center px-2">
+                              <div className="font-bold text-base leading-tight break-words" style={{ color: '#0F766E' }}>
+                                {filledGELanguage.courseCode}
+                              </div>
+                              <div className="text-sm mt-0.5 leading-tight break-words" style={{ color: '#0F766E', opacity: 0.8 }}>
+                                {filledGELanguage.courseName}
+                              </div>
+                              <div className="text-[10px] mt-0.5 leading-tight" style={{ color: '#6B7280' }}>
+                                GE Language
                               </div>
                             </div>
                           ) : isFilledGEPool ? (
@@ -1224,12 +1379,30 @@ export default function TestingPage() {
                         <div className="text-[10px] font-medium text-gray-400 uppercase mb-1">GE Pool</div>
                         <div className="text-xs text-gray-700 mb-1">
                           <span className="font-bold text-purple-700">{matchedGEPool.length}</span>{' '}
-                          / {curriculum.filter(c => c.courseCode === 'GE Pool').length} slots filled
+                          / {curriculum.filter(c => c.courseCode === 'GE Pool' && !c.courseTitle.includes('Language')).length} slots filled
                         </div>
                         <div className="space-y-0.5">
                           {matchedGEPool.map((g, i) => (
                             <div key={i} className="text-[11px] text-purple-700 font-mono leading-relaxed">
                               {g.courseCode} <span className="text-[9px] text-gray-500">({g.category})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* GE Language Pool Summary */}
+                    {matchedGELanguage.length > 0 && (
+                      <div className="border-t border-gray-100 pt-2">
+                        <div className="text-[10px] font-medium text-gray-400 uppercase mb-1">GE Language Pool</div>
+                        <div className="text-xs text-gray-700 mb-1">
+                          <span className="font-bold text-teal-700">{matchedGELanguage.length}</span>{' '}
+                          / {curriculum.filter(c => c.courseCode === 'GE Pool' && c.courseTitle.includes('Language')).length} slots filled
+                        </div>
+                        <div className="space-y-0.5">
+                          {matchedGELanguage.map((g, i) => (
+                            <div key={i} className="text-[11px] text-teal-700 font-mono leading-relaxed">
+                              {g.courseCode}
                             </div>
                           ))}
                         </div>
@@ -1248,6 +1421,25 @@ export default function TestingPage() {
                           {matchedFreeElectives.map((f, i) => (
                             <div key={i} className="text-[11px] text-amber-700 font-mono leading-relaxed">
                               {f.courseCode} <span className="text-[9px] text-gray-500">({f.credits} CR)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Unplaced Courses */}
+                    {unplacedCourses.length > 0 && (
+                      <div className="border-t border-gray-100 pt-2">
+                        <div className="text-[10px] font-medium text-red-400 uppercase mb-1">Unmapped Courses</div>
+                        <div className="space-y-1.5">
+                          {unplacedCourses.map((u, i) => (
+                            <div key={i}>
+                              <div className="text-[11px] text-red-600 font-mono font-semibold leading-tight">
+                                {u.courseCode}
+                              </div>
+                              <div className="text-[9px] text-gray-500 leading-tight">
+                                {u.semesterLabel}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1283,6 +1475,36 @@ export default function TestingPage() {
         </div>
       </GCPLayout>
 
+      {/* PWA Install Prompt */}
+      {showInstallPrompt && (
+        <div
+          className="fixed top-4 right-4 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-4 max-w-[260px]"
+          style={{
+            animation: 'slideInRight 200ms ease-out',
+          }}
+        >
+          <style>{`
+            @keyframes slideInRight {
+              from { opacity: 0; transform: translateX(20px) translateY(-10px); }
+              to { opacity: 1; transform: translateX(0) translateY(0); }
+            }
+          `}</style>
+          <button
+            onClick={dismissInstallPrompt}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+          <div className="text-sm font-semibold text-gray-800 mb-1">Install Extension</div>
+          <div className="text-xs text-gray-500 mb-3">Use this tool faster by installing it</div>
+          <button
+            onClick={handleInstallClick}
+            className="w-full text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            Install
+          </button>
+        </div>
+      )}
     </>
   );
 }

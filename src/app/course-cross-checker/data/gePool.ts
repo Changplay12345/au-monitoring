@@ -18,6 +18,7 @@ const humanityCourses: GEPoolCourse[] = [
   { courseCode: 'GE1107', courseName: 'Perspectives in Politics and Economy', credits: 3, category: 'Humanity' },
   { courseCode: 'GE2102', courseName: 'Human Heritage and Globalization', credits: 3, category: 'Humanity' },
   { courseCode: 'GE2103', courseName: 'Art of Reasoning', credits: 3, category: 'Humanity' },
+  { courseCode: 'GE2110', courseName: 'Human Civil and Citizen', credits: 2, category: 'Humanity' },
   { courseCode: 'MU1002', courseName: 'Pop Music Appreciation', credits: 3, category: 'Humanity' },
   { courseCode: 'MU1231', courseName: 'History and Literature of Music', credits: 3, category: 'Humanity' },
   { courseCode: 'MU3602', courseName: 'Music Therapy', credits: 3, category: 'Humanity' },
@@ -125,3 +126,8 @@ export const humanityCodesSet = new Set(humanityCourses.map(c => c.courseCode))
 export const socialScienceCodesSet = new Set(socialScienceCourses.map(c => c.courseCode))
 export const scienceMathCodesSet = new Set(scienceMathCourses.map(c => c.courseCode))
 export const languageCodesSet = new Set(languageCourses.map(c => c.courseCode))
+
+// BBA courses — treated as GE fallback with LOWEST priority
+export const bbaCodesSet = new Set(
+  allGEPoolCourses.filter(c => c.courseCode.startsWith('BBA')).map(c => c.courseCode)
+)
