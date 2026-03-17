@@ -11,22 +11,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'TRANSCRIPT_SCRAPED') {
     latestTranscript = message.transcript;
+    const auSparkTabId = sender.tab?.id;
     
-    // Try to send to Cross Checker tab
-    if (crossCheckerTabId) {
-      chrome.tabs.sendMessage(crossCheckerTabId, {
-        type: 'TRANSCRIPT_DATA',
-        transcript: message.transcript
-      }).catch(() => {
-        // Tab might be closed, clear the ID
-        crossCheckerTabId = null;
-      });
-    }
-
-    // Also try to find any Cross Checker tabs and notify them
-    notifyCrossCheckerTabs(message.transcript);
+    // Find and notify Cross Checker tabs, then close AU Spark tab
+    notifyCrossCheckerTabs(message.transcript).then((sent) => {
+      console.log('[AU Spark Extension] Transcript sent to Cross Checker:', sent);
+      
+      if (sent && message.closeTab && auSparkTabId) {
+        // Focus Cross Checker tab first
+        focusCrossCheckerTab().then(() => {
+          // Then close AU Spark tab
+          setTimeout(() => {
+            chrome.tabs.remove(auSparkTabId).catch(e => {
+              console.log('[AU Spark Extension] Could not close tab:', e);
+            });
+          }, 300);
+        });
+      }
+      
+      sendResponse({ success: sent });
+    });
     
-    sendResponse({ success: true });
+    return true; // Keep channel open for async response
   }
 
   if (message.type === 'FOCUS_CROSS_CHECKER') {
@@ -47,8 +53,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// Find and notify Cross Checker tabs
+// Find and notify Cross Checker tabs - returns true if at least one tab received the data
 async function notifyCrossCheckerTabs(transcript) {
+  let sentToAny = false;
   try {
     const tabs = await chrome.tabs.query({});
     
@@ -63,15 +70,18 @@ async function notifyCrossCheckerTabs(transcript) {
             type: 'TRANSCRIPT_DATA',
             transcript: transcript
           });
-          console.log('[AU Spark Extension] Sent transcript to tab:', tab.id);
+          console.log('[AU Spark Extension] Sent transcript to tab:', tab.id, tab.url);
+          sentToAny = true;
+          crossCheckerTabId = tab.id; // Remember this tab
         } catch (e) {
-          // Tab doesn't have our content script, ignore
+          console.log('[AU Spark Extension] Tab', tab.id, 'did not receive message:', e.message);
         }
       }
     }
   } catch (e) {
     console.error('[AU Spark Extension] Error notifying tabs:', e);
   }
+  return sentToAny;
 }
 
 // Focus the Cross Checker tab

@@ -83,33 +83,24 @@
     return null;
   }
 
-  // Send data to the web app
-  function sendToWebApp(transcript) {
-    // Method 1: Store in localStorage with a special key
-    // The web app will check for this
-    const data = {
-      timestamp: Date.now(),
-      transcript: transcript,
-      source: 'au-spark-extension'
-    };
+  // Send data to the web app via background script
+  function sendToWebApp(transcript, closeAfter = true) {
+    console.log('[AU Spark Extension] Sending transcript to background script...');
     
-    localStorage.setItem('au-spark-transcript', JSON.stringify(data));
-    
-    // Method 2: Send message to background script
+    // Send message to background script which will relay to Cross Checker tab
     chrome.runtime.sendMessage({
       type: 'TRANSCRIPT_SCRAPED',
-      transcript: transcript
+      transcript: transcript,
+      closeTab: closeAfter
+    }, (response) => {
+      console.log('[AU Spark Extension] Background script response:', response);
+      if (response && response.success && closeAfter) {
+        // Close this tab after a short delay
+        setTimeout(() => {
+          window.close();
+        }, 500);
+      }
     });
-
-    // Method 3: Broadcast to any listening tabs (our web app)
-    // This uses BroadcastChannel API
-    try {
-      const channel = new BroadcastChannel('au-spark-import');
-      channel.postMessage(data);
-      channel.close();
-    } catch (e) {
-      console.log('[AU Spark Extension] BroadcastChannel not supported');
-    }
 
     return true;
   }
@@ -169,21 +160,15 @@
       const transcript = scrapeTranscript();
       
       if (transcript) {
-        sendToWebApp(transcript);
+        sendToWebApp(transcript, true); // true = close tab after
         btn.innerHTML = `
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          Imported! Return to Cross Checker
+          Imported! Closing...
         `;
         btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
         btn.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.4)';
-        
-        // Add click to go back
-        btn.onclick = () => {
-          // Try to find and focus the Cross Checker tab
-          chrome.runtime.sendMessage({ type: 'FOCUS_CROSS_CHECKER' });
-        };
       } else {
         btn.innerHTML = `
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
