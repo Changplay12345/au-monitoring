@@ -16,6 +16,12 @@
   animation: float-up 1.5s ease-out forwards;
 }
 
+/* Swap dropdown fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Notification item entrance animation */
 @keyframes notifEnter {
   from {
