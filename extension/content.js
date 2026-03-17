@@ -99,24 +99,44 @@
     return null;
   }
 
-  // Send data to the web app via background script
+  // Send data to the web app via multiple channels for reliability
   function sendToWebApp(transcript, closeAfter = true) {
-    console.log('[AU Spark Extension] Sending transcript to background script...');
+    console.log('[AU Spark Extension] Sending transcript...');
     
-    // Send message to background script which will relay to Cross Checker tab
+    // Method 1: postMessage to opener window (works cross-origin!)
+    if (window.opener) {
+      console.log('[AU Spark Extension] Sending via postMessage to opener');
+      window.opener.postMessage({
+        type: 'au-spark-transcript',
+        payload: transcript
+      }, '*'); // Allow any origin since we don't know the exact Vercel URL
+    }
+
+    // Method 2: BroadcastChannel (same-origin only, but good for localhost)
+    try {
+      const channel = new BroadcastChannel('au-spark-channel');
+      channel.postMessage({ type: 'transcript', payload: transcript });
+      channel.close();
+      console.log('[AU Spark Extension] Sent via BroadcastChannel');
+    } catch (e) {
+      console.log('[AU Spark Extension] BroadcastChannel not available');
+    }
+
+    // Method 3: Background script relay (original method)
     chrome.runtime.sendMessage({
       type: 'TRANSCRIPT_SCRAPED',
       transcript: transcript,
       closeTab: closeAfter
     }, (response) => {
       console.log('[AU Spark Extension] Background script response:', response);
-      if (response && response.success && closeAfter) {
-        // Close this tab after a short delay
-        setTimeout(() => {
-          window.close();
-        }, 500);
-      }
     });
+
+    // Close tab after sending (give time for messages to be sent)
+    if (closeAfter) {
+      setTimeout(() => {
+        window.close();
+      }, 800);
+    }
 
     return true;
   }
