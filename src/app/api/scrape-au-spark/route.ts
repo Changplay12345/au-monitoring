@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Browser, Page } from 'playwright-core';
 
 // ─── Types (mirrors frontend ParsedTranscript) ────────────────────────────
 interface TranscriptCourse {
@@ -30,6 +29,7 @@ const AU_SPARK_TRANSCRIPT_URL =
   process.env.AU_SPARK_TRANSCRIPT_URL || 'https://auspark.au.edu/student/grade';
 
 const SCRAPE_TIMEOUT_MS = 15_000; // 15 second overall timeout
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 // ─── Transcript text parser (identical logic to frontend PDF parser) ──────
 function parseTranscriptText(text: string): ParsedTranscript | null {
@@ -86,26 +86,36 @@ async function scrapeAUSpark(
   username: string,
   password: string
 ): Promise<ParsedTranscript> {
-  let browser: Browser | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let browser: any = null;
 
   try {
-    // Dynamic imports for serverless compatibility
-    const chromium = (await import('@sparticuz/chromium')).default;
-    const { chromium: playwrightChromium } = await import('playwright-core');
-
-    // Launch browser with serverless-safe settings
-    browser = await playwrightChromium.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
+    // Use different browser launch strategy for local dev vs serverless
+    if (IS_VERCEL) {
+      // Serverless: use @sparticuz/chromium with playwright-core
+      const chromium = (await import('@sparticuz/chromium')).default;
+      const { chromium: playwrightChromium } = await import('playwright-core');
+      
+      browser = await playwrightChromium.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } else {
+      // Local dev: use regular playwright with bundled browser
+      const { chromium: playwrightChromium } = await import('playwright');
+      
+      browser = await playwrightChromium.launch({
+        headless: true,
+      });
+    }
 
     const context = await browser.newContext({
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
 
-    const page: Page = await context.newPage();
+    const page = await context.newPage();
     page.setDefaultTimeout(SCRAPE_TIMEOUT_MS);
 
     // ── Step 1: Navigate to login page ──
