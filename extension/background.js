@@ -5,6 +5,19 @@
 let latestTranscript = null;
 let crossCheckerTabId = null;
 
+// Save transcript to chrome.storage for cross-context access
+function saveTranscriptToStorage(transcript) {
+  chrome.storage.local.set({
+    'au-spark-transcript': {
+      timestamp: Date.now(),
+      transcript: transcript,
+      source: 'au-spark-extension'
+    }
+  }, () => {
+    console.log('[AU Spark Extension] Transcript saved to chrome.storage');
+  });
+}
+
 // Listen for messages from content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[AU Spark Extension] Background received:', message.type);
@@ -13,11 +26,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     latestTranscript = message.transcript;
     const auSparkTabId = sender.tab?.id;
     
-    // Find and notify Cross Checker tabs, then close AU Spark tab
-    notifyCrossCheckerTabs(message.transcript).then((sent) => {
-      console.log('[AU Spark Extension] Transcript sent to Cross Checker:', sent);
+    // Save to storage first
+    saveTranscriptToStorage(message.transcript);
+    
+    // Find Cross Checker tabs and inject the data directly
+    injectTranscriptIntoCrossChecker(message.transcript).then((sent) => {
+      console.log('[AU Spark Extension] Transcript injected into Cross Checker:', sent);
       
-      if (sent && message.closeTab && auSparkTabId) {
+      if (message.closeTab && auSparkTabId) {
         // Focus Cross Checker tab first
         focusCrossCheckerTab().then(() => {
           // Then close AU Spark tab
@@ -53,8 +69,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// Find and notify Cross Checker tabs - returns true if at least one tab received the data
-async function notifyCrossCheckerTabs(transcript) {
+// Inject transcript data directly into Cross Checker tabs using chrome.scripting
+async function injectTranscriptIntoCrossChecker(transcript) {
   let sentToAny = false;
   try {
     const tabs = await chrome.tabs.query({});
@@ -62,24 +78,39 @@ async function notifyCrossCheckerTabs(transcript) {
     for (const tab of tabs) {
       if (tab.url && (
         tab.url.includes('localhost') ||
-        tab.url.includes('vercel.app') ||
-        tab.url.includes('testing')
+        tab.url.includes('vercel.app')
       )) {
         try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'TRANSCRIPT_DATA',
-            transcript: transcript
+          // Use chrome.scripting to inject code that dispatches the event
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (transcriptData) => {
+              console.log('[AU Spark Extension] Injecting transcript via executeScript');
+              // Dispatch custom event
+              const event = new CustomEvent('au-spark-transcript', {
+                detail: transcriptData
+              });
+              window.dispatchEvent(event);
+              // Also save to localStorage
+              localStorage.setItem('au-spark-transcript', JSON.stringify({
+                timestamp: Date.now(),
+                transcript: transcriptData,
+                source: 'au-spark-extension'
+              }));
+              console.log('[AU Spark Extension] Transcript injected successfully');
+            },
+            args: [transcript]
           });
-          console.log('[AU Spark Extension] Sent transcript to tab:', tab.id, tab.url);
+          console.log('[AU Spark Extension] Injected transcript into tab:', tab.id, tab.url);
           sentToAny = true;
-          crossCheckerTabId = tab.id; // Remember this tab
+          crossCheckerTabId = tab.id;
         } catch (e) {
-          console.log('[AU Spark Extension] Tab', tab.id, 'did not receive message:', e.message);
+          console.log('[AU Spark Extension] Could not inject into tab', tab.id, ':', e.message);
         }
       }
     }
   } catch (e) {
-    console.error('[AU Spark Extension] Error notifying tabs:', e);
+    console.error('[AU Spark Extension] Error injecting transcript:', e);
   }
   return sentToAny;
 }
