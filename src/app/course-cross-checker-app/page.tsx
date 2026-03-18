@@ -276,44 +276,16 @@ function parseTranscriptText(text: string): ParsedTranscript | null {
 
   for (let i = 0; i < semesterLabels.length; i++) {
     const section = semesterSections[i + 1] || '';
-    const courses: TranscriptCourse[] = [];
     
-    // Try multiple patterns to match different PDF formats
-    // Pattern 1: CODE COURSE NAME N CR. (standard format)
-    let courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})\s+(.+?)\s+(\d)\s*CR\./g)];
-    
-    // Pattern 2: CODE followed by credits on same/next line (AU Spark PRO format)
-    // e.g., "CE1101 3 CR." or "CE1101\n3 CR."
-    if (courseMatches.length === 0) {
-      courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})[\s\S]*?(\d)\s*CR\./g)];
-    }
-    
-    // Pattern 3: Just find course codes and credits separately
-    if (courseMatches.length === 0) {
-      const codes = [...section.matchAll(/([A-Z]{2,4}\d{4})/g)];
-      const credits = [...section.matchAll(/(\d)\s*CR\./g)];
-      // Pair them up if counts match
-      if (codes.length > 0 && codes.length === credits.length) {
-        for (let j = 0; j < codes.length; j++) {
-          courses.push({
-            code: codes[j][1],
-            name: '', // No name available in this format
-            credits: parseInt(credits[j][1]),
-          });
-        }
-      }
-    }
-    
-    // Process matches from patterns 1 or 2
-    if (courses.length === 0 && courseMatches.length > 0) {
-      for (const m of courseMatches) {
-        courses.push({
-          code: m[1],
-          name: m[2] ? m[2].trim().replace(/\s+/g, ' ').replace(/\d\s*$/, '').trim() : '',
-          credits: parseInt(m[m.length - 1]) || 3,
-        });
-      }
-    }
+    // Use same regex pattern as AU Spark extension for consistency
+    // Pattern: CODE followed by anything, then credits (N CR.)
+    const courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})\s+.*?(\d)\s*CR\./g)];
+
+    const courses: TranscriptCourse[] = courseMatches.map(m => ({
+      code: m[1],
+      name: '', // Name will be filled from lookup tables later
+      credits: parseInt(m[2]),
+    }));
 
     if (courses.length > 0) {
       semesters.push({ semesterLabel: semesterLabels[i], courses });
