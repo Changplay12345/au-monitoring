@@ -24,9 +24,9 @@ interface Version {
   downloadUrl?: string
 }
 
-const INSTALLER_FILENAME = 'TQF.Master.2.0.Setup.2.0.0.exe'
-// GitHub Releases URL - upload the installer as a release asset
-const GITHUB_RELEASE_URL = 'https://github.com/Changplay12345/au-monitoring/releases/download/v2.0.0/TQF.Master.2.0.Setup.2.0.0.exe'
+const INSTALLER_FILENAME = 'TQF.2.0.Trial.Version.zip'
+// GitHub Releases URL - direct download from release assets
+const GITHUB_RELEASE_URL = 'https://github.com/Changplay12345/au-monitoring/releases/download/TQF/TQF.2.0.Trial.Version.zip'
 
 const versions: Version[] = [
   {
