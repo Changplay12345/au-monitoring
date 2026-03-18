@@ -82,9 +82,9 @@ export function GCPSidebar({ isOpen, onClose, activeItem = 'Course Monitoring', 
     { icon: <Brain className="w-5 h-5" />, label: 'Course Monitoring', hasChevron: true, href: pageUrls['Course Monitoring'] },
     { icon: <Folder className="w-5 h-5" />, label: 'TQF Master 2.0', hasChevron: true, href: pageUrls['TQF Master 2.0'] },
     { icon: <GraduationCap className="w-5 h-5" />, label: 'Course Cross Checker', hasChevron: true, href: pageUrls['Course Cross Checker'] },
-    { icon: <Brain className="w-5 h-5" />, label: 'Course Planner', hasChevron: true, href: pageUrls['Course Planner'], adminOnly: true },
+    // { icon: <Brain className="w-5 h-5" />, label: 'Course Planner', hasChevron: true, href: pageUrls['Course Planner'], adminOnly: true },
     { icon: <Database className="w-5 h-5" />, label: 'Registration Simulator', hasChevron: true, href: pageUrls['Registration Simulator'], adminOnly: true },
-    { icon: <Code2 className="w-5 h-5" />, label: 'APIs & Services', hasChevron: true, href: pageUrls['APIs & Services'], adminOnly: true },
+    // { icon: <Code2 className="w-5 h-5" />, label: 'APIs & Services', hasChevron: true, href: pageUrls['APIs & Services'], adminOnly: true },
     { icon: <Users className="w-5 h-5" />, label: 'Admin Panel', hasChevron: true, href: pageUrls['Admin Panel'], adminOnly: true },
   ]
 
