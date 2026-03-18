@@ -46,6 +46,7 @@ interface SemesterGroup {
 // --- Parsed Transcript Types ---
 interface TranscriptCourse {
   code: string;
+  name: string;
   credits: number;
 }
 
@@ -275,12 +276,14 @@ function parseTranscriptText(text: string): ParsedTranscript | null {
 
   for (let i = 0; i < semesterLabels.length; i++) {
     const section = semesterSections[i + 1] || '';
-    // Match course code (2-4 uppercase + 4 digits) followed by credits
-    const courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})\s+.*?(\d)\s*CR\./g)];
+    // Match course code (2-4 uppercase + 4 digits) followed by course name and credits
+    // Pattern: CODE COURSE NAME ... N CR.
+    const courseMatches = [...section.matchAll(/([A-Z]{2,4}\d{4})\s+(.+?)\s+(\d)\s*CR\./g)];
 
     const courses: TranscriptCourse[] = courseMatches.map(m => ({
       code: m[1],
-      credits: parseInt(m[2]),
+      name: m[2].trim().replace(/\s+/g, ' '), // Clean up course name
+      credits: parseInt(m[3]),
     }));
 
     if (courses.length > 0) {
@@ -523,6 +526,7 @@ function PannableCanvas({
 
       {/* Transformed content layer */}
       <div
+        data-canvas-content="true"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
@@ -728,7 +732,7 @@ export default function TestingPage() {
             const info = electiveLookup.get(c.code);
             electives.push({
               courseCode: c.code,
-              courseName: info?.courseName || c.code,
+              courseName: c.name || info?.courseName || c.code, // Prefer transcript name
               semesterIndex: semIdx,
               semesterLabel: sem.semesterLabel,
             });
@@ -757,7 +761,7 @@ export default function TestingPage() {
         if (info.category === 'Humanity' || info.category === 'Social Science' || info.category === 'Science and Math') {
           gePoolMatches.push({
             courseCode: c.code,
-            courseName: info.courseName,
+            courseName: c.name || info.courseName, // Prefer transcript name
             category: info.category as 'Humanity' | 'Social Science' | 'Science and Math',
             semesterIndex: semIdx,
             semesterLabel: sem.semesterLabel,
@@ -782,7 +786,7 @@ export default function TestingPage() {
           const info = gePoolLookup.get(c.code);
           geLanguageMatches.push({
             courseCode: c.code,
-            courseName: info?.courseName || c.code,
+            courseName: c.name || info?.courseName || c.code, // Prefer transcript name
             semesterIndex: semIdx,
             semesterLabel: sem.semesterLabel,
           });
@@ -810,7 +814,7 @@ export default function TestingPage() {
           const info = gePoolLookup.get(c.code);
           bbaCandidates.push({
             courseCode: c.code,
-            courseName: info?.courseName || c.code,
+            courseName: c.name || info?.courseName || c.code, // Prefer transcript name
             category: info?.category as 'Humanity' | 'Social Science' | 'Science and Math' || 'Social Science',
             semesterIndex: semIdx,
             semesterLabel: sem.semesterLabel,
@@ -840,7 +844,7 @@ export default function TestingPage() {
         const elInfo = electiveLookup?.get(c.code);
         freeElectiveMatches.push({
           courseCode: c.code,
-          courseName: geInfo?.courseName || elInfo?.courseName || c.code,
+          courseName: c.name || geInfo?.courseName || elInfo?.courseName || c.code, // Prefer transcript name
           credits: c.credits,
           semesterIndex: semIdx,
           semesterLabel: sem.semesterLabel,
@@ -1344,8 +1348,8 @@ export default function TestingPage() {
     setIsExportingPDF(true);
 
     try {
-      // Find the canvas content area
-      const canvasContent = canvasContainerRef.current.querySelector('.relative') as HTMLElement;
+      // Find the canvas content area (the transformed content layer)
+      const canvasContent = canvasContainerRef.current.querySelector('[data-canvas-content]') as HTMLElement;
       if (!canvasContent) {
         throw new Error('Canvas content not found');
       }
