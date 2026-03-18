@@ -19,6 +19,7 @@ const STORAGE_KEY_READ = 'au_notifications_read'
 const STORAGE_KEY_RESOLVED = 'au_notifications_resolved'
 const STORAGE_KEY_CLEARED = 'au_notifications_cleared'
 const STORAGE_KEY_TIMESTAMPS = 'au_notifications_timestamps'
+const STORAGE_KEY_INITIAL_LOAD = 'au_notifications_initial_load'
 
 // Load Set from localStorage
 function loadSetFromStorage(key: string): Set<string> {
@@ -94,9 +95,33 @@ let clearedNotificationsSet: Set<string> = loadSetFromStorage(STORAGE_KEY_CLEARE
 // Track when each notification was first seen (for sorting by newest first)
 let notificationTimestamps: Map<string, string> = loadMapFromStorage(STORAGE_KEY_TIMESTAMPS)
 
+// Load initial load flag from localStorage
+function loadInitialLoadFlag(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_INITIAL_LOAD)
+    if (stored !== null) {
+      return stored === 'true'
+    }
+  } catch (e) {
+    console.error(`Error loading ${STORAGE_KEY_INITIAL_LOAD} from localStorage:`, e)
+  }
+  return true
+}
+
+// Save initial load flag to localStorage
+function saveInitialLoadFlag(value: boolean) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY_INITIAL_LOAD, value.toString())
+  } catch (e) {
+    console.error(`Error saving ${STORAGE_KEY_INITIAL_LOAD} to localStorage:`, e)
+  }
+}
+
 // Track seat values for ALL courses to detect transitions from >0 to 0
 let prevSeatValues: Map<string, number> = new Map()
-let isInitialNotificationLoad: boolean = true
+let isInitialNotificationLoad: boolean = loadInitialLoadFlag()
 let notifiedCourseIds: Set<string> = new Set()
 
 export function useNotifications(): UseNotificationsReturn {
@@ -180,7 +205,7 @@ export function useNotifications(): UseNotificationsReturn {
   // Fetch all full courses from data_vme_test as notifications
   const fetchNotifications = useCallback(async (force: boolean = false) => {
     // Skip if already fetched and not forced
-    if (hasFetchedOnce && !force && notifications.length > 0) {
+    if (hasFetchedOnce && !force) {
       return
     }
 
@@ -216,18 +241,23 @@ export function useNotifications(): UseNotificationsReturn {
         currentSeatValues.set(id, r['Seat Left'])
       })
 
-      // On initial load: store baseline seat values, auto-mark all full courses as read
+      // On initial load: store baseline seat values and mark initially-full courses as cleared
       if (isInitialNotificationLoad) {
         prevSeatValues = new Map(currentSeatValues)
         isInitialNotificationLoad = false
+        saveInitialLoadFlag(false) // Persist to localStorage
         const fullCount = data.length
-        console.log(`[Notifications] Initial load: stored ${currentSeatValues.size} course seat values, ${fullCount} already full (no notification)`)
-        // Auto-mark all initially-full courses as read
+        console.log(`[Notifications] Initial load: stored ${currentSeatValues.size} course seat values, ${fullCount} already full`)
+        
+        // Mark all initially-full courses as cleared so they don't show in notifications
+        // Only courses that become full during simulation will show
+        const clearedSet = getClearedNotifications()
         data.forEach(r => {
           const id = `${r["Course Code"]}-${r["Section"]}`
-          readSet.add(id)
+          clearedSet.add(id)
+          console.log(`[Notifications] Marking initially-full course as cleared: ${id}`)
         })
-        updateReadNotifications(readSet)
+        updateClearedNotifications(clearedSet)
       } else {
         // Detect newly-full courses: prevSeat > 0 AND currentSeat === 0
         const newlyFull: string[] = []
@@ -236,6 +266,11 @@ export function useNotifications(): UseNotificationsReturn {
           // Course just became full (had seats before, now has 0)
           if (currentSeat === 0 && prevSeat !== undefined && prevSeat > 0) {
             if (!notifiedCourseIds.has(id)) {
+              // Remove from cleared set so it can show as notification
+              const clearedSet = getClearedNotifications()
+              clearedSet.delete(id)
+              updateClearedNotifications(clearedSet)
+              
               readSet.delete(id)
               resolvedSet.delete(id)
               notifiedCourseIds.add(id)
@@ -302,8 +337,7 @@ export function useNotifications(): UseNotificationsReturn {
     } finally {
       setIsLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFetchedOnce, notifications.length])
+  }, [hasFetchedOnce, getReadNotifications, getResolvedNotifications, updateReadNotifications, updateResolvedNotifications, getClearedNotifications, recordToNotification])
 
   // Use ref to avoid recreating subscription on every render
   const fetchNotificationsRef = useRef(fetchNotifications)
@@ -410,6 +444,7 @@ export function useNotifications(): UseNotificationsReturn {
       localStorage.removeItem(STORAGE_KEY_RESOLVED)
       localStorage.removeItem(STORAGE_KEY_CLEARED)
       localStorage.removeItem(STORAGE_KEY_TIMESTAMPS)
+      localStorage.removeItem(STORAGE_KEY_INITIAL_LOAD)
     }
     
     // Reset state
