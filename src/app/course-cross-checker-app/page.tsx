@@ -341,9 +341,9 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
 // All values are exact multiples of GRID. No arbitrary offsets.
 // ═══════════════════════════════════════════════════════════════════
 const GRID = 50;                                    // background grid cell size (px)
-const TITLE_HEIGHT = GRID * 1.2;                    // 60px — space for curriculum title
+const TITLE_HEIGHT = GRID * 0.8;                    // 40px — space for single-line curriculum title
 const HEADER_HEIGHT = GRID * 1;                     // 50px — 1 grid cell for header
-const TOP_OFFSET = TITLE_HEIGHT;                    // 60px — canvas starts after title
+const TOP_OFFSET = TITLE_HEIGHT;                    // 40px — canvas starts after title
 const GLOBAL_Y_START = TOP_OFFSET + HEADER_HEIGHT;  // 110px — SINGLE Y origin for ALL columns
 
 const COLUMN_WIDTH = GRID * 4;                      // 200px — card width = 4 grid cells
@@ -1640,22 +1640,6 @@ export default function TestingPage() {
                   </div>
                 </div>
 
-                {/* Curriculum Title — fixed above grid, does NOT scroll with canvas */}
-                {studyPlanLoaded && selectedMajor && selectedCurriculum && (() => {
-                  const major = MAJORS.find(m => m.value === selectedMajor);
-                  const currVer = CURRICULA[selectedMajor]?.find(v => v.value === selectedCurriculum);
-                  return major && currVer ? (
-                    <div className="text-center py-3 border-b border-gray-100 bg-gray-50/60">
-                      <div className="text-lg font-bold text-gray-800">
-                        Bachelor of {major.degreeName}
-                      </div>
-                      <div className="text-sm font-medium text-gray-500 mt-0.5">
-                        Curriculum for {currVer.label} Students ({currVer.totalCredits} Credits)
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-
                 {!studyPlanLoaded ? (
                   <div className="flex flex-col items-center justify-center text-gray-400" style={{ height: 'calc(100vh - 180px)' }}>
                     <BookOpen className="w-14 h-14 mb-4 opacity-30" />
@@ -1668,22 +1652,18 @@ export default function TestingPage() {
                     canvasHeight={layout.totalHeight}
                     containerRef={canvasContainerRef}
                   >
-                    {/* Curriculum Title — centered above semester headers */}
+                    {/* Curriculum Title — centered above semester headers (single line) */}
                     <div
                       style={{
                         position: 'absolute',
                         left: 0,
-                        top: 0,
+                        top: 8,
                         width: layout.totalWidth,
                         textAlign: 'center',
-                        paddingTop: 10,
                       }}
                     >
-                      <div className="text-lg font-bold text-gray-800">
-                        Bachelor of {selectedMajor === 'computer-engineering' ? 'Computer' : 'Electrical'} Engineering
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Curriculum for {parsedTranscript?.student?.id?.substring(0, 3) || '651'}-xxxx Students ({selectedMajor === 'computer-engineering' ? '132' : '138'} Credits)
+                      <div className="text-base font-bold text-gray-800">
+                        Bachelor of {selectedMajor === 'computer-engineering' ? 'Computer' : 'Electrical'} Engineering — Curriculum for {parsedTranscript?.student?.id?.substring(0, 3) || '651'}-xxxx Students ({selectedMajor === 'computer-engineering' ? '132' : '138'} Credits)
                       </div>
                     </div>
 
