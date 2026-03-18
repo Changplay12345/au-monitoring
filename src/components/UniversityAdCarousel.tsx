@@ -46,7 +46,7 @@ const universityAds: UniversityAd[] = [
     title: "Hardware System",
     subtitle: "Physical Infrastructure",
     description: "Robust hardware components forming the foundation of our monitoring ecosystem for data collection.",
-    image: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&h=600&fit=crop",
+    image: "/hardware.jpg",
     ctaText: "",
     ctaLink: ""
   }

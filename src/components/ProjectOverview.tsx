@@ -160,9 +160,9 @@ export function ProjectOverview() {
       subtitle: "Physical Infrastructure",
       description: "Our hardware components form the foundation of the monitoring ecosystem, providing robust and reliable infrastructure for data collection and processing.",
       images: [
-        "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?w=600&h=400&fit=crop"
+        "/hardware.jpg",
+        "/hardware2.jpg",
+        "/hardware3.jpg"
       ],
       icon: <HardDrive className="w-8 h-8" />,
       features: [
