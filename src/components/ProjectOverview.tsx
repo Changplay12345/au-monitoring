@@ -127,7 +127,7 @@ export function ProjectOverview() {
       subtitle: "Study Plan Maker",
       description: "TQF Master is a comprehensive software solution designed to streamline academic planning and curriculum management through intelligent automation.",
       images: [
-        "/tqf first.png",
+        "/Tqf first.png",
         "/tqf studyplan.png",
         "/tqfcustomize.png"
       ],
