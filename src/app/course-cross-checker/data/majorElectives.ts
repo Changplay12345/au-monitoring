@@ -33,7 +33,7 @@ export const sharedMajorElectives: MajorElectiveCourse[] = [
   { courseCode: 'CE4303', courseName: 'Introduction to Big-Data', credits: 3, category: 'CE' },
   { courseCode: 'CE4304', courseName: 'Programming for Data Analytics', credits: 3, category: 'CE' },
   { courseCode: 'CE4310', courseName: 'Introduction to Financial Technology', credits: 3, category: 'CE' },
-  { courseCode: 'CE4311', courseName: 'Advanced Financial Technology', credits: 3, category: 'CE' },
+  { courseCode: 'CE4311', courseName: 'Cybersecurity Awareness and Prevention', credits: 3, category: 'CE' },
   { courseCode: 'CE4713', courseName: 'Advanced Computer Architecture', credits: 3, category: 'CE' },
   { courseCode: 'CE4714', courseName: 'Fault-Tolerant Computer', credits: 3, category: 'CE' },
   { courseCode: 'CE4715', courseName: 'Artificial Intelligence I', credits: 3, category: 'CE' },
