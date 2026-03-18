@@ -341,9 +341,10 @@ function getCourseStyle(course: CurriculumCourse): { bg: string; border: string;
 // All values are exact multiples of GRID. No arbitrary offsets.
 // ═══════════════════════════════════════════════════════════════════
 const GRID = 50;                                    // background grid cell size (px)
+const TITLE_HEIGHT = GRID * 1.2;                    // 60px — space for curriculum title
 const HEADER_HEIGHT = GRID * 1;                     // 50px — 1 grid cell for header
-const TOP_OFFSET = 0;                               // 0px — canvas starts at 0
-const GLOBAL_Y_START = TOP_OFFSET + HEADER_HEIGHT;  // 50px — SINGLE Y origin for ALL columns
+const TOP_OFFSET = TITLE_HEIGHT;                    // 60px — canvas starts after title
+const GLOBAL_Y_START = TOP_OFFSET + HEADER_HEIGHT;  // 110px — SINGLE Y origin for ALL columns
 
 const COLUMN_WIDTH = GRID * 4;                      // 200px — card width = 4 grid cells
 const COLUMN_GAP = GRID * 1;                        // 50px — gap between columns = 1 grid cell
@@ -1370,8 +1371,8 @@ export default function TestingPage() {
         maxY = Math.max(maxY, top + height);
       });
 
-      // Add padding
-      const padding = 40;
+      // Add padding (increased for better margins)
+      const padding = 80;
       minX = Math.max(0, minX - padding);
       minY = Math.max(0, minY - padding);
       maxX += padding;
@@ -1667,6 +1668,25 @@ export default function TestingPage() {
                     canvasHeight={layout.totalHeight}
                     containerRef={canvasContainerRef}
                   >
+                    {/* Curriculum Title — centered above semester headers */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        width: layout.totalWidth,
+                        textAlign: 'center',
+                        paddingTop: 10,
+                      }}
+                    >
+                      <div className="text-lg font-bold text-gray-800">
+                        Bachelor of {selectedMajor === 'computer-engineering' ? 'Computer' : 'Electrical'} Engineering
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Curriculum for {parsedTranscript?.student?.id?.substring(0, 3) || '651'}-xxxx Students ({selectedMajor === 'computer-engineering' ? '132' : '138'} Credits)
+                      </div>
+                    </div>
+
                     {/* Column Headers — TQF Master 2.0 style */}
                     {layout.headers.map(header => (
                       <div
