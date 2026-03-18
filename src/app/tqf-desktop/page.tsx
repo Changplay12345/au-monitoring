@@ -24,8 +24,9 @@ interface Version {
   downloadUrl?: string
 }
 
-const INSTALLER_FILENAME = 'TQF Master 2.0 Setup 2.0.0.exe'
-const DOWNLOAD_API_URL = '/api/download'
+const INSTALLER_FILENAME = 'TQF.Master.2.0.Setup.2.0.0.exe'
+// GitHub Releases URL - upload the installer as a release asset
+const GITHUB_RELEASE_URL = 'https://github.com/Changplay12345/au-monitoring/releases/download/v2.0.0/TQF.Master.2.0.Setup.2.0.0.exe'
 
 const versions: Version[] = [
   {
@@ -40,7 +41,7 @@ const versions: Version[] = [
       'PDF and CSV export support'
     ],
     isLatest: true,
-    downloadUrl: `/${INSTALLER_FILENAME}`
+    downloadUrl: GITHUB_RELEASE_URL
   },
   {
     version: 'v1.9.5',
@@ -75,17 +76,12 @@ export default function TQFDesktopPage() {
   const [downloadingVersion, setDownloadingVersion] = useState<string | null>(null)
 
   const handleDownload = (ver: Version) => {
-    if (!ver.isLatest) return
+    if (!ver.isLatest || !ver.downloadUrl) return
     
     setDownloadingVersion(ver.version)
     
-    // Use API route for trusted download
-    const link = document.createElement('a')
-    link.href = DOWNLOAD_API_URL
-    link.download = INSTALLER_FILENAME
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    // Open GitHub Release download URL
+    window.open(ver.downloadUrl, '_blank')
     
     setTimeout(() => {
       setDownloadingVersion(null)
