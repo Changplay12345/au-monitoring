@@ -119,7 +119,7 @@ async function focusCrossCheckerTab() {
     for (const tab of tabs) {
       if (tab.url && (
         tab.url.includes('localhost:3000') ||
-        tab.url.includes('testing')
+        tab.url.includes('course-cross-checker')
       )) {
         await chrome.tabs.update(tab.id, { active: true });
         await chrome.windows.update(tab.windowId, { focused: true });

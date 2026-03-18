@@ -19,7 +19,7 @@ const universityAds: UniversityAd[] = [
     title: "AU-Monitoring",
     subtitle: "Web Platform",
     description: "A comprehensive web-based platform providing real-time course monitoring, analytics, and management capabilities.",
-    image: "https://images.unsplash.com/photo-1562774053-701939374585?w=1200&h=600&fit=crop",
+    image: "/banner1.png",
     ctaText: "Try Now",
     ctaLink: "/course-monitoring"
   },
@@ -34,6 +34,15 @@ const universityAds: UniversityAd[] = [
   },
   {
     id: 3,
+    title: "Course Cross Checker",
+    subtitle: "Built-in Feature",
+    description: "Built-in feature within AU-Monitoring that automatically checks for the students course studied.",
+    image: "/cccbanner.png",
+    ctaText: "",
+    ctaLink: ""
+  }, 
+  {
+    id: 4,
     title: "Hardware System",
     subtitle: "Physical Infrastructure",
     description: "Robust hardware components forming the foundation of our monitoring ecosystem for data collection.",

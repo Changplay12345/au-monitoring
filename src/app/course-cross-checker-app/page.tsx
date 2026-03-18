@@ -17,7 +17,10 @@ import {
   Zap,
   X,
   Download,
+  FileDown,
 } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import jsPDF from 'jspdf';
 import { electiveCodesSet as ceElectiveCodesSet, electiveLookup as ceElectiveLookup } from '@/app/course-cross-checker/data/majors/ce';
 import { electiveCodesSet as eeElectiveCodesSet, electiveLookup as eeElectiveLookup } from '@/app/course-cross-checker/data/majors/ee';
 import type { MajorElectiveCourse } from '@/app/course-cross-checker/data/majorElectives';
@@ -1329,6 +1332,93 @@ export default function TestingPage() {
     setActiveSwapNode(nodeIdx);
   }, [activeSwapNode]);
 
+  // PDF Export state
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  // Handle PDF export
+  const handleExportPDF = useCallback(async () => {
+    if (!canvasContainerRef.current || !studyPlanLoaded) {
+      return;
+    }
+
+    setIsExportingPDF(true);
+
+    try {
+      // Find the canvas content area
+      const canvasContent = canvasContainerRef.current.querySelector('.relative') as HTMLElement;
+      if (!canvasContent) {
+        throw new Error('Canvas content not found');
+      }
+
+      // Get all course nodes to calculate bounds
+      const nodes = canvasContent.querySelectorAll('[style*="position: absolute"]');
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+      nodes.forEach((node) => {
+        const el = node as HTMLElement;
+        const left = parseInt(el.style.left) || 0;
+        const top = parseInt(el.style.top) || 0;
+        const width = el.offsetWidth;
+        const height = el.offsetHeight;
+        minX = Math.min(minX, left);
+        minY = Math.min(minY, top);
+        maxX = Math.max(maxX, left + width);
+        maxY = Math.max(maxY, top + height);
+      });
+
+      // Add padding
+      const padding = 40;
+      minX = Math.max(0, minX - padding);
+      minY = Math.max(0, minY - padding);
+      maxX += padding;
+      maxY += padding;
+
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
+
+      // Capture the canvas content
+      const dataUrl = await toPng(canvasContent, {
+        backgroundColor: '#f9fafb',
+        width: contentWidth,
+        height: contentHeight,
+        style: {
+          transform: `translate(${-minX}px, ${-minY}px)`,
+          transformOrigin: 'top left',
+        },
+      });
+
+      // Create image to get dimensions
+      const img = new Image();
+      img.src = dataUrl;
+
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+
+      // Create PDF
+      const pdfWidth = img.width;
+      const pdfHeight = img.height;
+
+      const pdf = new jsPDF({
+        orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [pdfWidth, pdfHeight]
+      });
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // Generate filename with student info if available
+      const studentName = parsedTranscript?.student?.name?.replace(/\s+/g, '_') || 'study-plan';
+      pdf.save(`${studentName}_crosscheck.pdf`);
+
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+      alert(`PDF Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsExportingPDF(false);
+    }
+  }, [studyPlanLoaded, parsedTranscript]);
+
   // Loading states
   if (authLoading || !isAuthenticated) {
     return (
@@ -2003,6 +2093,21 @@ export default function TestingPage() {
                         </div>
                         );
                       })}
+                    </div>
+
+                    {/* Export PDF Button */}
+                    <div className="border-t border-gray-100 pt-3">
+                      <button
+                        onClick={handleExportPDF}
+                        disabled={isExportingPDF || !studyPlanLoaded}
+                        className="w-full flex items-center justify-center gap-1.5 bg-red-600 text-white rounded-lg px-3 py-2 text-xs font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        {isExportingPDF ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Exporting...</>
+                        ) : (
+                          <><FileDown className="w-3.5 h-3.5" /> Export PDF</>
+                        )}
+                      </button>
                     </div>
                   </div>
                 ) : (
