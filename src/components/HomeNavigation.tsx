@@ -64,7 +64,13 @@ export function HomeNavigation() {
       image: 'Tqf first.png',
       description: 'Access the web-based TQF Master 2.0 platform'
     },
-    
+    { 
+      icon: <Brain className="w-6 h-6" />, 
+      label: 'Course Cross Checker', 
+      href: '/course-cross-checker-app',
+      image: 'cccbanner.png',
+      description: 'Validate your transcript against curriculum requirements'
+    },
   ]
 
   // Intersection observer for fade-in animations

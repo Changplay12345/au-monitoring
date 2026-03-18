@@ -139,6 +139,23 @@ export function ProjectOverview() {
     },
     {
       id: 3,
+      title: "Course Cross Checker",
+      subtitle: "Curriculum Validation Tool",
+      description: "An intelligent tool that cross-references your transcript with curriculum requirements, automatically mapping completed courses and identifying remaining requirements for graduation.",
+      images: [
+        "/cccbanner.png",
+        "/WebOverview1.png",
+        "/course_monitor.png"
+      ],
+      icon: <Globe className="w-8 h-8" />,
+      features: [
+        "Automatic transcript parsing",
+        "Visual curriculum mapping",
+        "PDF export functionality"
+      ]
+    },
+    {
+      id: 4,
       title: "Hardware",
       subtitle: "Physical Infrastructure",
       description: "Our hardware components form the foundation of the monitoring ecosystem, providing robust and reliable infrastructure for data collection and processing.",

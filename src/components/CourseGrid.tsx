@@ -411,7 +411,7 @@ export function CourseGrid() {
     ? allCourses.filter(course => 
         course.courseCode.toLowerCase().includes(searchInput.toLowerCase()) ||
         course.courseTitle.toLowerCase().includes(searchInput.toLowerCase())
-      ).slice(0, 8) // Limit to 8 results
+      )
     : []
 
   // Close dropdown when clicking outside
@@ -685,7 +685,7 @@ export function CourseGrid() {
             </button>
             {/* Search dropdown results */}
             {showSearchDropdown && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-y-auto max-h-[320px] animate-in fade-in slide-in-from-top-2 duration-200">
                 {searchResults.map((course, idx) => {
                   const courseId = `${course.courseCode}-${course.section}`
                   const isGlowing = glowingCourses.has(courseId)
